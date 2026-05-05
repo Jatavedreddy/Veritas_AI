@@ -1,0 +1,37 @@
+# ─── Veritas .gitignore ───
+
+# Environment
+.env
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data artifacts (large files)
+data/raw/*.csv
+data/raw/*.json
+data/processed/
+*.parquet
+
+# ML artifacts
+ml/models/*.pkl
+ml/models/*.joblib
+ml/models/*.onnx
+
+# Logs
+*.log
+
+
+#Readme.md for now :
+README.md
