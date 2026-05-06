@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+
+{% block title %}Settings{% endblock %}
+{% block page_title %}Platform Settings{% endblock %}
+{% block page_subtitle %}Configure ML engines, agent behavior, API integrations, and general preferences.{% endblock %}
+
+{% block head_extra %}
+<style>
+  .tab-btn { position: relative; padding: 0.75rem 1.25rem; font-size: 0.875rem; font-weight: 500; color: rgba(30,30,30,0.5); transition: all 200ms; cursor: pointer; border: none; background: none; }
+  .tab-btn:hover { color: #1E1E1E; }
+  .tab-btn.active { color: #1E1E1E; font-weight: 600; }
+  .tab-btn.active::after { content: ''; position: absolute; bottom: 0; left: 0.75rem; right: 0.75rem; height: 2px; background: #D96B52; border-radius: 1px; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* Toggle switch */
+  .toggle-track { width: 2.75rem; height: 1.5rem; border-radius: 9999px; background: #d1d5db; position: relative; cursor: pointer; transition: background 200ms; flex-shrink: 0; }
+  .toggle-track.on { background: #D96B52; }
+  .toggle-knob { width: 1.125rem; height: 1.125rem; border-radius: 9999px; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.15); position: absolute; top: 50%; transform: translateY(-50%); left: 3px; transition: left 200ms; }
+  .toggle-track.on .toggle-knob { left: calc(100% - 1.125rem - 3px); }
+
+  /* Range slider */
+  input[type=range] { -webkit-appearance: none; width: 100%; height: 6px; border-radius: 3px; background: #e5e7eb; outline: none; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #D96B52; cursor: pointer; box-shadow: 0 2px 6px rgba(217,107,82,0.3); }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 2rem; right: 2rem; z-index: 100; transform: translateY(120%); opacity: 0; transition: all 400ms cubic-bezier(0.16,1,0.3,1); }
+  .toast.show { transform: translateY(0); opacity: 1; }
+</style>
+{% endblock %}
+
+
+{% block content %}
+
+<!-- TAB NAVIGATION -->
+<div class="bg-white rounded-2xl border border-gray-100 shadow-card mb-6 overflow-hidden">
+  <div class="flex items-center border-b border-gray-100 px-2">
+    <button class="tab-btn active" data-tab="general">General</button>
+    <button class="tab-btn" data-tab="ml-engine">ML Engine</button>
+    <button class="tab-btn" data-tab="agents">Agents</button>
+    <button class="tab-btn" data-tab="api-keys">API Keys</button>
+  </div>
+
+  <!-- ── GENERAL ────────────────────────────────────────── -->
+  <div id="panel-general" class="tab-panel active p-6 space-y-6">
+    <h3 class="text-headline text-obsidian">General Settings</h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Platform Name</label>
+        <input type="text" value="Veritas Financial Advisory" class="w-full bg-offwhite border border-gray-200 rounded-xl px-4 py-3 text-sm text-obsidian focus:outline-none focus:ring-2 focus:ring-slateblue/30"/>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Timezone</label>
+        <select class="w-full bg-offwhite border border-gray-200 rounded-xl px-4 py-3 text-sm text-obsidian focus:outline-none focus:ring-2 focus:ring-slateblue/30">
+          <option selected>UTC (Coordinated Universal Time)</option>
+          <option>EST (Eastern Standard Time)</option>
+          <option>IST (India Standard Time)</option>
+          <option>CET (Central European Time)</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Default Currency</label>
+        <select class="w-full bg-offwhite border border-gray-200 rounded-xl px-4 py-3 text-sm text-obsidian focus:outline-none focus:ring-2 focus:ring-slateblue/30">
+          <option selected>USD — US Dollar</option>
+          <option>EUR — Euro</option>
+          <option>GBP — British Pound</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Alert Threshold (USD)</label>
+        <input type="number" value="10000" class="w-full bg-offwhite border border-gray-200 rounded-xl px-4 py-3 text-sm text-obsidian focus:outline-none focus:ring-2 focus:ring-slateblue/30"/>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ML ENGINE ──────────────────────────────────────── -->
+  <div id="panel-ml-engine" class="tab-panel p-6 space-y-8">
+    <h3 class="text-headline text-obsidian">ML Engine Configuration</h3>
+
+    <!-- Contamination Rate -->
+    <div class="bg-offwhite rounded-xl p-5 border border-gray-100">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <p class="text-sm font-semibold text-obsidian">Isolation Forest Contamination Rate</p>
+          <p class="text-xs text-gray-400 mt-0.5">Controls sensitivity — higher values flag more transactions as anomalous.</p>
+        </div>
+        <span id="contamination-value" class="text-lg font-serif font-bold text-terracotta">0.05</span>
+      </div>
+      <input id="contamination-slider" type="range" min="0.01" max="0.20" step="0.01" value="0.05" class="w-full"/>
+      <div class="flex justify-between text-[10px] text-gray-400 mt-1.5">
+        <span>0.01 (Conservative)</span>
+        <span>0.10 (Balanced)</span>
+        <span>0.20 (Aggressive)</span>
+      </div>
+    </div>
+
+    <!-- Retraining Frequency -->
+    <div class="bg-offwhite rounded-xl p-5 border border-gray-100">
+      <p class="text-sm font-semibold text-obsidian mb-1">Retraining Frequency</p>
+      <p class="text-xs text-gray-400 mb-3">How often the Isolation Forest model is retrained with new transaction data.</p>
+      <select class="bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-obsidian w-full md:w-64 focus:outline-none focus:ring-2 focus:ring-slateblue/30">
+        <option>Every 24 hours</option>
+        <option selected>Every 7 days</option>
+        <option>Every 30 days</option>
+        <option>Manual Only</option>
+      </select>
+    </div>
+
+    <!-- Feature Weights -->
+    <div class="bg-offwhite rounded-xl p-5 border border-gray-100">
+      <p class="text-sm font-semibold text-obsidian mb-1">Feature Weights</p>
+      <p class="text-xs text-gray-400 mb-4">Adjust the relative importance of each feature in the anomaly detection model.</p>
+      <div class="space-y-3">
+        <div class="flex items-center gap-4"><span class="text-xs text-gray-600 w-40">Transaction Amount</span><input type="range" min="0" max="1" step="0.1" value="0.8" class="flex-1"/><span class="text-xs font-bold text-obsidian w-8">0.8</span></div>
+        <div class="flex items-center gap-4"><span class="text-xs text-gray-600 w-40">Region Risk Score</span><input type="range" min="0" max="1" step="0.1" value="0.6" class="flex-1"/><span class="text-xs font-bold text-obsidian w-8">0.6</span></div>
+        <div class="flex items-center gap-4"><span class="text-xs text-gray-600 w-40">Historical Deviation</span><input type="range" min="0" max="1" step="0.1" value="0.7" class="flex-1"/><span class="text-xs font-bold text-obsidian w-8">0.7</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── AGENTS ─────────────────────────────────────────── -->
+  <div id="panel-agents" class="tab-panel p-6 space-y-6">
+    <h3 class="text-headline text-obsidian">Virtual Risk Committee — Agent Configuration</h3>
+    <p class="text-sm text-gray-500 -mt-3">Enable or disable individual AI agents in the multi-agent risk committee pipeline.</p>
+
+    <div class="space-y-4">
+      <!-- Compliance Auditor -->
+      <div class="bg-offwhite rounded-xl p-5 border border-gray-100 flex items-center justify-between">
+        <div class="flex items-center gap-4">
+          <div class="w-10 h-10 rounded-xl bg-slateblue/10 flex items-center justify-center text-slateblue font-serif font-bold text-sm">CA</div>
+          <div>
+            <p class="text-sm font-semibold text-obsidian">Compliance Auditor</p>
+            <p class="text-xs text-gray-400">Scans regulatory knowledge base via RAG for applicable violations.</p>
+          </div>
+        </div>
+        <div class="toggle-track on" data-agent="compliance"><div class="toggle-knob"></div></div>
+      </div>
+
+      <!-- Quantitative Analyst -->
+      <div class="bg-offwhite rounded-xl p-5 border border-gray-100 flex items-center justify-between">
+        <div class="flex items-center gap-4">
+          <div class="w-10 h-10 rounded-xl bg-terracotta/10 flex items-center justify-center text-terracotta font-serif font-bold text-sm">QA</div>
+          <div>
+            <p class="text-sm font-semibold text-obsidian">Quantitative Analyst</p>
+            <p class="text-xs text-gray-400">Scores portfolio exposure and quantifies financial risk vectors.</p>
+          </div>
+        </div>
+        <div class="toggle-track on" data-agent="quant"><div class="toggle-knob"></div></div>
+      </div>
+
+      <!-- Chief Risk Officer -->
+      <div class="bg-offwhite rounded-xl p-5 border border-gray-100 flex items-center justify-between">
+        <div class="flex items-center gap-4">
+          <div class="w-10 h-10 rounded-xl bg-mutedsage/10 flex items-center justify-center text-mutedsage font-serif font-bold text-sm">CR</div>
+          <div>
+            <p class="text-sm font-semibold text-obsidian">Chief Risk Officer (CRO)</p>
+            <p class="text-xs text-gray-400">Synthesizes all findings into an executive brief and SAR draft.</p>
+          </div>
+        </div>
+        <div class="toggle-track on" data-agent="cro"><div class="toggle-knob"></div></div>
+      </div>
+    </div>
+
+    <!-- LLM Provider -->
+    <div class="bg-offwhite rounded-xl p-5 border border-gray-100">
+      <p class="text-sm font-semibold text-obsidian mb-1">LLM Provider</p>
+      <p class="text-xs text-gray-400 mb-3">Select the language model backend for agent inference.</p>
+      <select class="bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-obsidian w-full md:w-72 focus:outline-none focus:ring-2 focus:ring-slateblue/30">
+        <option selected>Groq — Compound Model (Default)</option>
+        <option>OpenAI — GPT-4o</option>
+        <option>Anthropic — Claude Sonnet</option>
+        <option>Azure OpenAI — GPT-4</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- ── API KEYS ───────────────────────────────────────── -->
+  <div id="panel-api-keys" class="tab-panel p-6 space-y-6">
+    <h3 class="text-headline text-obsidian">API Keys & Integrations</h3>
+
+    <div class="space-y-4">
+      <div class="bg-offwhite rounded-xl p-5 border border-gray-100">
+        <div class="flex items-center justify-between mb-2">
+          <p class="text-sm font-semibold text-obsidian">Groq API Key</p>
+          <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">Connected</span>
+        </div>
+        <input type="password" value="gsk_xxxxxxxxxxxxxxxxxxxx" class="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm font-mono text-gray-500 focus:outline-none focus:ring-2 focus:ring-slateblue/30"/>
+      </div>
+
+      <div class="bg-offwhite rounded-xl p-5 border border-gray-100">
+        <div class="flex items-center justify-between mb-2">
+          <p class="text-sm font-semibold text-obsidian">Azure AI Search Endpoint</p>
+          <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">Connected</span>
+        </div>
+        <input type="text" value="https://veritas-search-*.search.windows.net" readonly class="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm font-mono text-gray-500 focus:outline-none"/>
+      </div>
+
+      <div class="bg-offwhite rounded-xl p-5 border border-gray-100">
+        <div class="flex items-center justify-between mb-2">
+          <p class="text-sm font-semibold text-obsidian">MongoDB Connection</p>
+          <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">Connected</span>
+        </div>
+        <input type="password" value="mongodb+srv://veritas:*****@cluster.mongodb.net" class="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm font-mono text-gray-500 focus:outline-none focus:ring-2 focus:ring-slateblue/30"/>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SAVE BUTTON -->
+<div class="flex justify-end">
+  <button id="btn-save-config"
+          class="flex items-center gap-2 bg-terracotta hover:bg-terracotta-dark text-white font-semibold text-sm rounded-xl px-8 py-3.5 shadow-lg hover:shadow-xl transition-all duration-200">
+    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
+    Save Configuration
+  </button>
+</div>
+
+<!-- TOAST NOTIFICATION -->
+<div id="toast" class="toast">
+  <div class="flex items-center gap-3 bg-emerald-600 text-white px-5 py-3.5 rounded-xl shadow-xl">
+    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
+    <span class="text-sm font-semibold">Settings Updated Successfully</span>
+  </div>
+</div>
+
+{% endblock %}
+
+
+{% block scripts_extra %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  // ── Tab switching ──
+  const tabs = document.querySelectorAll('.tab-btn');
+  const panels = document.querySelectorAll('.tab-panel');
+  tabs.forEach(t => t.addEventListener('click', () => {
+    tabs.forEach(b => b.classList.remove('active'));
+    panels.forEach(p => p.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('panel-' + t.dataset.tab).classList.add('active');
+  }));
+
+  // ── Toggle switches ──
+  document.querySelectorAll('.toggle-track').forEach(track => {
+    track.addEventListener('click', () => track.classList.toggle('on'));
+  });
+
+  // ── Contamination slider ──
+  const slider = document.getElementById('contamination-slider');
+  const label = document.getElementById('contamination-value');
+  if (slider && label) {
+    slider.addEventListener('input', () => label.textContent = parseFloat(slider.value).toFixed(2));
+  }
+
+  // ── Save button → toast ──
+  const saveBtn = document.getElementById('btn-save-config');
+  const toast = document.getElementById('toast');
+  saveBtn.addEventListener('click', () => {
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 3000);
+  });
+});
+</script>
+{% endblock %}

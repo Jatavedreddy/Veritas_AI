@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Sign In · Veritas</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            offwhite: '#FDFAFA', obsidian: '#1E1E1E', terracotta: '#D96B52',
+            slateblue: '#4A6B82', mutedsage: '#6B7A6A',
+          },
+          fontFamily: { serif: ['Playfair Display','serif'], sans: ['Inter','sans-serif'] }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .glow { box-shadow: 0 0 80px rgba(217,107,82,0.08), 0 25px 60px rgba(0,0,0,0.25); }
+    .field:focus-within label { color: #D96B52; }
+    @keyframes fadeUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+    .animate-up { animation: fadeUp 0.5s ease-out both; }
+    .animate-up-delay { animation: fadeUp 0.5s ease-out 0.15s both; }
+  </style>
+</head>
+<body class="min-h-screen bg-obsidian flex">
+
+  <!-- LEFT: Branding Panel -->
+  <div class="hidden lg:flex w-[45%] flex-col justify-between p-12 relative overflow-hidden">
+    <!-- Background pattern -->
+    <div class="absolute inset-0 opacity-[0.04]" style="background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.5) 1px, transparent 0); background-size: 32px 32px;"></div>
+
+    <div class="relative z-10">
+      <div class="flex items-center gap-3 mb-16">
+        <div class="w-10 h-10 rounded-lg bg-terracotta flex items-center justify-center">
+          <span class="text-white font-serif font-bold text-lg">V</span>
+        </div>
+        <div>
+          <span class="text-white font-serif font-semibold text-lg tracking-wide">VERITAS</span>
+          <p class="text-white/30 text-[10px] uppercase tracking-[0.2em]">Financial Advisory</p>
+        </div>
+      </div>
+
+      <h1 class="text-white font-serif text-4xl leading-tight mb-6 animate-up">
+        Clarity in Risk.<br/>
+        <span class="text-terracotta">Confidence</span> in<br/>
+        Decisions.
+      </h1>
+      <p class="text-white/40 text-sm leading-relaxed max-w-sm animate-up-delay">
+        Multi-agent AI for financial risk detection, regulatory compliance, and portfolio intelligence.
+      </p>
+    </div>
+
+    <div class="relative z-10 text-white/20 text-xs">
+      &copy; 2026 Veritas Platform &middot; Encrypted Session
+    </div>
+  </div>
+
+  <!-- RIGHT: Login Form -->
+  <div class="flex-1 flex items-center justify-center p-8">
+    <div class="w-full max-w-md animate-up">
+
+      <div class="bg-white/[0.03] backdrop-blur-sm border border-white/[0.06] rounded-3xl p-10 glow">
+
+        <!-- Logo (mobile) -->
+        <div class="lg:hidden flex items-center gap-3 mb-8">
+          <div class="w-9 h-9 rounded-lg bg-terracotta flex items-center justify-center">
+            <span class="text-white font-serif font-bold">V</span>
+          </div>
+          <span class="text-white font-serif font-semibold tracking-wide">VERITAS</span>
+        </div>
+
+        <h2 class="text-white font-serif text-2xl font-semibold mb-1">Welcome back</h2>
+        <p class="text-white/40 text-sm mb-8">Sign in to your secure workspace</p>
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="mb-4 px-4 py-3 rounded-xl text-sm font-medium
+          {% if category == 'error' %}bg-red-500/10 border border-red-500/20 text-red-400
+          {% elif category == 'success' %}bg-emerald-500/10 border border-emerald-500/20 text-emerald-400
+          {% else %}bg-white/5 border border-white/10 text-white/60{% endif %}">
+          {{ message }}
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <form method="POST" action="{{ url_for('login_page') }}" class="space-y-5">
+
+          <div class="field">
+            <label class="block text-[10px] font-semibold uppercase tracking-[0.15em] text-white/40 mb-2 transition-colors">Email</label>
+            <input name="email" type="email" required placeholder="analyst@veritas.io"
+                   class="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3.5 text-sm text-white placeholder-white/20
+                          focus:outline-none focus:border-terracotta/50 focus:ring-1 focus:ring-terracotta/20 transition-all"/>
+          </div>
+
+          <div class="field">
+            <label class="block text-[10px] font-semibold uppercase tracking-[0.15em] text-white/40 mb-2 transition-colors">Password</label>
+            <input name="password" type="password" required placeholder="••••••••••"
+                   class="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3.5 text-sm text-white placeholder-white/20
+                          focus:outline-none focus:border-terracotta/50 focus:ring-1 focus:ring-terracotta/20 transition-all"/>
+          </div>
+
+          <button type="submit"
+                  class="w-full bg-terracotta hover:bg-terracotta/90 text-white font-semibold text-sm rounded-xl py-3.5 mt-2
+                         transition-all duration-200 shadow-lg shadow-terracotta/20 hover:shadow-terracotta/30">
+            Secure Sign In
+          </button>
+        </form>
+
+        <p class="mt-8 text-center text-xs text-white/30">
+          Don&rsquo;t have an account?
+          <a href="{{ url_for('register_page') }}" class="text-terracotta hover:text-terracotta/80 font-semibold transition-colors">Create an account</a>
+        </p>
+      </div>
+
+      <p class="text-center text-white/15 text-[11px] mt-6">256-bit encrypted &middot; Session-based auth</p>
+
+    </div>
+  </div>
+
+</body>
+</html>

@@ -1,0 +1,359 @@
+{% extends "base.html" %}
+
+{% block title %}Investigate · {{ transaction.get('transaction_id', 'Unknown') }}{% endblock %}
+
+{% block page_title %}Transaction Investigation{% endblock %}
+{% block page_subtitle %}Deep-dive into transaction {{ transaction.get('transaction_id', '') }} with AI-powered risk analysis.{% endblock %}
+
+{% block header_actions %}
+<!-- Back to dashboard -->
+<a href="/dashboard"
+   class="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-4 py-2 text-sm font-medium text-obsidian shadow-card hover:shadow-card-hover hover:border-gray-300 transition-all duration-200">
+  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
+  </svg>
+  Back to Dashboard
+</a>
+{% endblock %}
+
+
+{% block content %}
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+  <!-- ═══════════════════════════════════════════════════════
+       LEFT COLUMN — Transaction Detail
+       ═══════════════════════════════════════════════════════ -->
+  <div class="space-y-6">
+
+    <!-- Transaction Summary Card -->
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-card p-6">
+      <div class="flex items-center gap-3 mb-6">
+        <div class="w-10 h-10 rounded-xl bg-slateblue/10 flex items-center justify-center">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-slateblue" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+          </svg>
+        </div>
+        <div>
+          <h2 class="text-headline text-obsidian">Transaction Details</h2>
+          <p class="text-xs text-gray-400 font-mono mt-0.5">{{ transaction.get('transaction_id', 'N/A') }}</p>
+        </div>
+      </div>
+
+      <!-- Detail grid -->
+      <div class="grid grid-cols-2 gap-4">
+        <div class="bg-offwhite rounded-xl p-4 border border-gray-100/80">
+          <p class="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-1">Amount</p>
+          <p class="text-2xl font-serif font-bold text-obsidian">
+            ${{ "{:,.2f}".format(transaction.get('amount', 0)) }}
+          </p>
+          <p class="text-xs text-gray-500 mt-1">{{ transaction.get('currency', 'USD') }}</p>
+        </div>
+
+        <div class="bg-offwhite rounded-xl p-4 border border-gray-100/80">
+          <p class="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-1">Risk Assessment</p>
+          {% set amt = transaction.get('amount', 0) %}
+          {% if amt >= 100000 %}
+          <p class="text-2xl font-serif font-bold text-terracotta">High</p>
+          <p class="text-xs text-terracotta/70 mt-1">Amount exceeds $100K threshold</p>
+          {% elif amt >= 10000 %}
+          <p class="text-2xl font-serif font-bold text-amber-600">Medium</p>
+          <p class="text-xs text-amber-600/70 mt-1">Elevated transaction volume</p>
+          {% else %}
+          <p class="text-2xl font-serif font-bold text-mutedsage">Low</p>
+          <p class="text-xs text-mutedsage/70 mt-1">Within normal parameters</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Entity & Geography -->
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-card p-6">
+      <h3 class="text-sm font-semibold text-obsidian uppercase tracking-wider mb-4">Entity & Geography</h3>
+      <div class="space-y-3">
+        {% set meta = transaction.get('account_metadata', {}) %}
+
+        <div class="flex items-center justify-between py-2.5 border-b border-gray-50">
+          <span class="text-sm text-gray-500">Account Holder</span>
+          <span class="text-sm font-semibold text-obsidian">{{ meta.get('account_holder', 'Unknown') }}</span>
+        </div>
+        <div class="flex items-center justify-between py-2.5 border-b border-gray-50">
+          <span class="text-sm text-gray-500">Region</span>
+          <span class="text-sm font-semibold text-obsidian">{{ transaction.get('region', '—') }}</span>
+        </div>
+        <div class="flex items-center justify-between py-2.5 border-b border-gray-50">
+          <span class="text-sm text-gray-500">Transaction Type</span>
+          <span class="text-sm font-semibold text-obsidian">{{ transaction.get('transaction_type', '—') }}</span>
+        </div>
+        <div class="flex items-center justify-between py-2.5 border-b border-gray-50">
+          <span class="text-sm text-gray-500">Historical Avg Transaction</span>
+          <span class="text-sm font-semibold text-obsidian">
+            ${{ "{:,.2f}".format(meta.get('historical_avg_transaction', 0)) }}
+          </span>
+        </div>
+        <div class="flex items-center justify-between py-2.5">
+          <span class="text-sm text-gray-500">Ingested At</span>
+          <span class="text-sm font-mono text-gray-600">{{ transaction.get('ingested_at', '—') }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Alert Info (if linked) -->
+    {% if alert %}
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-card p-6">
+      <h3 class="text-sm font-semibold text-obsidian uppercase tracking-wider mb-4">ML Alert Data</h3>
+      <div class="space-y-3">
+        <div class="flex items-center justify-between py-2.5 border-b border-gray-50">
+          <span class="text-sm text-gray-500">Alert ID</span>
+          <span class="text-sm font-mono text-slateblue">{{ alert.get('_id', '') }}</span>
+        </div>
+        <div class="flex items-center justify-between py-2.5 border-b border-gray-50">
+          <span class="text-sm text-gray-500">Anomaly Score</span>
+          <span class="text-sm font-semibold
+            {% if alert.get('anomaly_score', 0) < -0.5 %} text-terracotta {% else %} text-mutedsage {% endif %}">
+            {{ "%.4f" | format(alert.get('anomaly_score', 0)) }}
+          </span>
+        </div>
+        <div class="flex items-center justify-between py-2.5 border-b border-gray-50">
+          <span class="text-sm text-gray-500">Status</span>
+          {% set status = alert.get('status', 'open') %}
+          {% if status == 'open' %}
+          <span class="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-red-100 text-red-700">Open</span>
+          {% elif status == 'advised' %}
+          <span class="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-700">Advised</span>
+          {% else %}
+          <span class="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-600">{{ status }}</span>
+          {% endif %}
+        </div>
+        <div class="flex items-center justify-between py-2.5">
+          <span class="text-sm text-gray-500">Source</span>
+          <span class="text-sm font-mono text-gray-600">{{ alert.get('source', '—') }}</span>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Run AI Committee Button -->
+    {% if alert %}
+    <button id="run-agents-btn"
+            data-alert-id="{{ alert.get('_id', '') }}"
+            class="w-full flex items-center justify-center gap-3
+                   bg-terracotta hover:bg-terracotta-dark text-white
+                   font-semibold text-sm rounded-xl px-6 py-4
+                   shadow-lg hover:shadow-xl
+                   transition-all duration-200
+                   disabled:opacity-50 disabled:cursor-not-allowed">
+      <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
+      </svg>
+      Run AI Risk Committee Analysis
+    </button>
+    {% else %}
+    <div class="w-full bg-gray-50 border border-dashed border-gray-200 rounded-xl p-6 text-center">
+      <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 mx-auto mb-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+      </svg>
+      <p class="text-sm text-gray-400 font-medium">No ML alert linked to this transaction.</p>
+      <p class="text-xs text-gray-300 mt-1">Run the <code class="text-xs">/api/v1/predict</code> endpoint first to generate alerts.</p>
+    </div>
+    {% endif %}
+
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       RIGHT COLUMN — Agent Output & SAR Draft
+       ═══════════════════════════════════════════════════════ -->
+  <div class="space-y-6">
+
+    <!-- Agent Output Panel -->
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-card overflow-hidden">
+      <div class="flex items-center justify-between px-6 py-5 border-b border-gray-100">
+        <div class="flex items-center gap-2">
+          <h2 class="text-headline text-obsidian">AI Advisory Output</h2>
+          <span id="agent-status-badge"
+                class="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-400">
+            Awaiting
+          </span>
+        </div>
+        <div class="flex items-center gap-1.5 text-xs text-gray-400">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+          </svg>
+          Virtual Risk Committee
+        </div>
+      </div>
+
+      <!-- Loading Spinner (hidden by default) -->
+      <div id="agent-loader" class="hidden px-6 py-10">
+        <div class="flex flex-col items-center justify-center">
+          <!-- Animated spinner -->
+          <div class="relative w-12 h-12 mb-5">
+            <div class="absolute inset-0 rounded-full border-2 border-gray-200"></div>
+            <div class="absolute inset-0 rounded-full border-2 border-transparent border-t-terracotta animate-spin"></div>
+          </div>
+          <p class="text-sm font-medium text-obsidian mb-1">Agents are analyzing...</p>
+          <p class="text-xs text-gray-400 text-center max-w-xs">
+            The Virtual Risk Committee is reviewing regulatory context, portfolio exposure, and transaction anomalies. This may take 30–90 seconds.
+          </p>
+
+          <!-- Animated progress steps -->
+          <div class="mt-6 space-y-2 w-full max-w-xs">
+            <div id="step-compliance" class="flex items-center gap-2 text-xs text-gray-400 transition-colors duration-500">
+              <span class="w-1.5 h-1.5 rounded-full bg-gray-300 shrink-0 step-dot"></span>
+              Compliance Auditor scanning regulations...
+            </div>
+            <div id="step-analyst" class="flex items-center gap-2 text-xs text-gray-400 transition-colors duration-500">
+              <span class="w-1.5 h-1.5 rounded-full bg-gray-300 shrink-0 step-dot"></span>
+              Quantitative Analyst scoring risk vectors...
+            </div>
+            <div id="step-cro" class="flex items-center gap-2 text-xs text-gray-400 transition-colors duration-500">
+              <span class="w-1.5 h-1.5 rounded-full bg-gray-300 shrink-0 step-dot"></span>
+              Chief Risk Officer drafting executive brief...
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Agent Output (initially empty) -->
+      <div id="agent-output" class="px-6 py-6">
+        {% if alert and alert.get('executive_brief') %}
+          <!-- Pre-existing report from a previous run -->
+          <div class="prose prose-sm max-w-none text-gray-700 leading-relaxed whitespace-pre-wrap font-sans text-sm">{{ alert.get('executive_brief', '') }}</div>
+          <div class="mt-4 pt-4 border-t border-gray-100 flex items-center gap-2">
+            <span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-700">Previously Generated</span>
+            <span class="text-[10px] text-gray-400">You can re-run the analysis to get a fresh assessment.</span>
+          </div>
+        {% else %}
+          <div class="flex flex-col items-center justify-center py-8 text-center">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-10 h-10 text-gray-200 mb-3" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+            </svg>
+            <p class="text-sm font-medium text-gray-400">No analysis generated yet.</p>
+            <p class="text-xs text-gray-300 mt-1">Click "Run AI Risk Committee Analysis" to begin.</p>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Error container (hidden) -->
+    <div id="agent-error" class="hidden">
+      <div class="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-red-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+        </svg>
+        <div>
+          <p class="text-sm font-semibold text-red-800">Analysis Failed</p>
+          <p id="agent-error-message" class="text-xs text-red-600 mt-1"></p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+{% endblock %}
+
+
+{% block scripts_extra %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const btn = document.getElementById('run-agents-btn');
+  if (!btn) return;
+
+  const loader      = document.getElementById('agent-loader');
+  const output      = document.getElementById('agent-output');
+  const errorBox    = document.getElementById('agent-error');
+  const errorMsg    = document.getElementById('agent-error-message');
+  const statusBadge = document.getElementById('agent-status-badge');
+  const alertId     = btn.dataset.alertId;
+
+  // Animated step highlights
+  const steps = ['step-compliance', 'step-analyst', 'step-cro'];
+  let stepIndex = 0;
+  let stepTimer = null;
+
+  function animateSteps() {
+    stepTimer = setInterval(() => {
+      if (stepIndex < steps.length) {
+        const el = document.getElementById(steps[stepIndex]);
+        el.classList.remove('text-gray-400');
+        el.classList.add('text-terracotta', 'font-medium');
+        el.querySelector('.step-dot').classList.remove('bg-gray-300');
+        el.querySelector('.step-dot').classList.add('bg-terracotta');
+        stepIndex++;
+      }
+    }, 8000);
+  }
+
+  btn.addEventListener('click', async () => {
+    // UI → loading state
+    btn.disabled = true;
+    btn.innerHTML = `
+      <svg class="w-5 h-5 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+      </svg>
+      Running Analysis...
+    `;
+    loader.classList.remove('hidden');
+    output.classList.add('hidden');
+    errorBox.classList.add('hidden');
+    statusBadge.textContent = 'Running';
+    statusBadge.className = 'inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700';
+
+    animateSteps();
+
+    try {
+      const res = await fetch('/api/v1/advise', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ alert_id: alertId }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.error || 'Unknown error');
+
+      // Success
+      clearInterval(stepTimer);
+      loader.classList.add('hidden');
+      output.classList.remove('hidden');
+      output.innerHTML = `
+        <div class="prose prose-sm max-w-none text-gray-700 leading-relaxed whitespace-pre-wrap font-sans text-sm">${data.report}</div>
+        <div class="mt-4 pt-4 border-t border-gray-100 flex items-center gap-2">
+          <span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-700">Complete</span>
+          <span class="text-[10px] text-gray-400">Generated just now by the Virtual Risk Committee.</span>
+        </div>
+      `;
+      statusBadge.textContent = 'Complete';
+      statusBadge.className = 'inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-700';
+
+      btn.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" />
+        </svg>
+        Re-run Analysis
+      `;
+      btn.disabled = false;
+
+    } catch (err) {
+      clearInterval(stepTimer);
+      loader.classList.add('hidden');
+      errorBox.classList.remove('hidden');
+      errorMsg.textContent = err.message;
+      statusBadge.textContent = 'Failed';
+      statusBadge.className = 'inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-700';
+
+      btn.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" />
+        </svg>
+        Retry Analysis
+      `;
+      btn.disabled = false;
+    }
+  });
+});
+</script>
+{% endblock %}

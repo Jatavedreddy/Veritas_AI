@@ -1,0 +1,320 @@
+{% extends "base.html" %}
+
+{% block title %}Compliance Search{% endblock %}
+
+{% block page_title %}Regulatory Compliance Search{% endblock %}
+{% block page_subtitle %}Query SEC regulations, Basel III frameworks, and global sanctions using AI-powered semantic search.{% endblock %}
+
+{% block header_actions %}
+<div class="flex items-center gap-2 text-xs text-gray-400">
+  <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
+  </svg>
+  <span>Powered by Azure AI Search + Sentence Transformers</span>
+</div>
+{% endblock %}
+
+
+{% block content %}
+
+<!-- ═══════════════════════════════════════════════════════════
+     SEARCH BAR
+     ═══════════════════════════════════════════════════════════ -->
+<section id="compliance-search-section" class="mb-8">
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-card p-6">
+
+    <form id="compliance-search-form" class="flex items-center gap-4">
+      <!-- Search input -->
+      <div class="flex-1 relative">
+        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-gray-300" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+          </svg>
+        </div>
+        <input id="search-input"
+               type="text"
+               placeholder="Search SEC regulations and global sanctions..."
+               autocomplete="off"
+               class="w-full pl-12 pr-4 py-4 text-sm text-obsidian bg-offwhite border border-gray-200
+                      rounded-xl placeholder-gray-400
+                      focus:outline-none focus:ring-2 focus:ring-slateblue/30 focus:border-slateblue/40
+                      transition-all duration-200" />
+      </div>
+
+      <!-- Search button -->
+      <button id="btn-search" type="submit"
+              class="flex items-center gap-2 bg-obsidian hover:bg-obsidian-light text-white
+                     font-semibold text-sm rounded-xl px-6 py-4
+                     shadow-lg hover:shadow-xl transition-all duration-200
+                     disabled:opacity-50 disabled:cursor-not-allowed shrink-0">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+        </svg>
+        Search
+      </button>
+    </form>
+
+    <!-- Quick queries -->
+    <div class="mt-4 flex flex-wrap items-center gap-2">
+      <span class="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mr-1">Try:</span>
+      <button type="button" class="quick-query text-xs px-3 py-1 rounded-full border border-gray-200 text-gray-500 hover:border-slateblue/40 hover:text-slateblue hover:bg-slateblue/5 transition-all duration-200">
+        Bank Secrecy Act reporting requirements
+      </button>
+      <button type="button" class="quick-query text-xs px-3 py-1 rounded-full border border-gray-200 text-gray-500 hover:border-slateblue/40 hover:text-slateblue hover:bg-slateblue/5 transition-all duration-200">
+        OFAC sanctions screening obligations
+      </button>
+      <button type="button" class="quick-query text-xs px-3 py-1 rounded-full border border-gray-200 text-gray-500 hover:border-slateblue/40 hover:text-slateblue hover:bg-slateblue/5 transition-all duration-200">
+        Basel III capital adequacy ratios
+      </button>
+      <button type="button" class="quick-query text-xs px-3 py-1 rounded-full border border-gray-200 text-gray-500 hover:border-slateblue/40 hover:text-slateblue hover:bg-slateblue/5 transition-all duration-200">
+        Anti-money laundering due diligence
+      </button>
+    </div>
+
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     SEARCH LOADING STATE
+     ═══════════════════════════════════════════════════════════ -->
+<div id="search-loader" class="hidden mb-8">
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-card p-10 flex flex-col items-center">
+    <div class="relative w-10 h-10 mb-4">
+      <div class="absolute inset-0 rounded-full border-2 border-gray-200"></div>
+      <div class="absolute inset-0 rounded-full border-2 border-transparent border-t-slateblue animate-spin"></div>
+    </div>
+    <p class="text-sm font-medium text-obsidian mb-1">Searching regulatory knowledge base...</p>
+    <p class="text-xs text-gray-400">Encoding query with Sentence Transformers and performing vector similarity search.</p>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     SEARCH RESULTS (hidden initially)
+     ═══════════════════════════════════════════════════════════ -->
+<div id="search-results" class="hidden">
+  <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+
+    <!-- Left Column — AI Synthesized Answer (2/5 width) -->
+    <div class="lg:col-span-2">
+      <div class="bg-white rounded-2xl border border-gray-100 shadow-card overflow-hidden sticky top-24">
+
+        <div class="flex items-center gap-2 px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-slateblue/5 to-transparent">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-slateblue" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+          </svg>
+          <h3 class="text-sm font-semibold text-obsidian">AI Synthesized Answer</h3>
+        </div>
+
+        <div id="ai-summary" class="px-6 py-5">
+          <!-- Populated by JS -->
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Right Column — Direct Regulatory Citations (3/5 width) -->
+    <div class="lg:col-span-3 space-y-4">
+
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+          </svg>
+          <h3 class="text-sm font-semibold text-obsidian">Direct Regulatory Citations</h3>
+        </div>
+        <span id="result-count" class="text-xs text-gray-400"></span>
+      </div>
+
+      <!-- Citation cards injected here -->
+      <div id="citation-cards" class="space-y-4">
+        <!-- Populated by JS -->
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     ERROR STATE
+     ═══════════════════════════════════════════════════════════ -->
+<div id="search-error" class="hidden mb-8">
+  <div class="bg-red-50 border border-red-200 rounded-xl p-5 flex items-start gap-3">
+    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-red-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+    </svg>
+    <div>
+      <p class="text-sm font-semibold text-red-800">Search Failed</p>
+      <p id="search-error-msg" class="text-xs text-red-600 mt-1"></p>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+
+{% block scripts_extra %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const form       = document.getElementById('compliance-search-form');
+  const input      = document.getElementById('search-input');
+  const btnSearch  = document.getElementById('btn-search');
+  const loader     = document.getElementById('search-loader');
+  const results    = document.getElementById('search-results');
+  const errorBox   = document.getElementById('search-error');
+  const errorMsg   = document.getElementById('search-error-msg');
+  const aiSummary  = document.getElementById('ai-summary');
+  const citations  = document.getElementById('citation-cards');
+  const resultCount = document.getElementById('result-count');
+
+  // Quick-query buttons
+  document.querySelectorAll('.quick-query').forEach(btn => {
+    btn.addEventListener('click', () => {
+      input.value = btn.textContent.trim();
+      form.dispatchEvent(new Event('submit'));
+    });
+  });
+
+  // Category → color mapping
+  const categoryColors = {
+    'AML':        { bg: 'bg-terracotta/10', text: 'text-terracotta', border: 'border-terracotta/20' },
+    'Sanctions':  { bg: 'bg-red-50',        text: 'text-red-700',    border: 'border-red-200' },
+    'Basel III':  { bg: 'bg-slateblue/10',  text: 'text-slateblue',  border: 'border-slateblue/20' },
+    'KYC':        { bg: 'bg-mutedsage/10',  text: 'text-mutedsage',  border: 'border-mutedsage/20' },
+    'default':    { bg: 'bg-gray-100',      text: 'text-gray-600',   border: 'border-gray-200' },
+  };
+
+  function getCatColor(cat) {
+    return categoryColors[cat] || categoryColors['default'];
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const query = input.value.trim();
+    if (!query) { input.focus(); return; }
+
+    // UI → loading
+    loader.classList.remove('hidden');
+    results.classList.add('hidden');
+    errorBox.classList.add('hidden');
+    btnSearch.disabled = true;
+    btnSearch.innerHTML = `
+      <svg class="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+      </svg>
+      Searching...
+    `;
+
+    try {
+      const res = await fetch('/api/v1/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Search request failed');
+
+      const docs = data.results || [];
+
+      // ── AI Summary ──────────────────────────────────────
+      if (docs.length > 0) {
+        const summaryHtml = `
+          <div class="mb-4">
+            <p class="text-xs text-gray-400 mb-2 font-semibold uppercase tracking-wider">Query</p>
+            <p class="text-sm text-obsidian font-medium italic">"${data.query}"</p>
+          </div>
+          <div class="border-t border-gray-100 pt-4">
+            <p class="text-xs text-gray-400 mb-3 font-semibold uppercase tracking-wider">RAG Context Summary</p>
+            <p class="text-sm text-gray-700 leading-relaxed">
+              Found <strong class="text-obsidian">${docs.length}</strong> relevant regulatory document${docs.length !== 1 ? 's' : ''} matching your query.
+              ${docs.map(d => `<span class="text-slateblue font-medium">${d.citation || 'Untitled'}</span>`).join(', ')}
+              — covering
+              ${[...new Set(docs.map(d => d.jurisdiction).filter(Boolean))].join(', ') || 'multiple jurisdictions'}.
+            </p>
+          </div>
+          <div class="mt-4 pt-4 border-t border-gray-100 flex flex-wrap gap-2">
+            ${docs.map(d => {
+              const c = getCatColor(d.category);
+              return `<span class="text-[10px] px-2 py-0.5 rounded-full border ${c.border} ${c.bg} ${c.text} font-semibold">${d.category || 'General'}</span>`;
+            }).join('')}
+          </div>
+        `;
+        aiSummary.innerHTML = summaryHtml;
+      } else {
+        aiSummary.innerHTML = `
+          <div class="py-6 text-center">
+            <p class="text-sm text-gray-400">No results found for your query.</p>
+            <p class="text-xs text-gray-300 mt-1">Try broadening your search terms.</p>
+          </div>
+        `;
+      }
+
+      // ── Citation Cards ────────────────────────────────
+      resultCount.textContent = `${docs.length} result${docs.length !== 1 ? 's' : ''} found`;
+
+      citations.innerHTML = docs.map((doc, i) => {
+        const c = getCatColor(doc.category);
+        const score = doc.score != null ? (doc.score * 100).toFixed(1) : null;
+        return `
+          <div class="bg-white rounded-2xl border border-gray-100 shadow-card hover:shadow-card-hover transition-shadow duration-200 overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <span class="w-7 h-7 rounded-lg ${c.bg} flex items-center justify-center text-xs font-bold ${c.text}">${i + 1}</span>
+                <div>
+                  <h4 class="text-sm font-semibold text-obsidian">${doc.citation || 'Untitled Document'}</h4>
+                  <div class="flex items-center gap-2 mt-0.5">
+                    <span class="text-[10px] px-2 py-0.5 rounded-full border ${c.border} ${c.bg} ${c.text} font-semibold">${doc.category || 'General'}</span>
+                    ${doc.jurisdiction ? `<span class="text-[10px] text-gray-400">${doc.jurisdiction}</span>` : ''}
+                  </div>
+                </div>
+              </div>
+              ${score ? `
+                <div class="text-right">
+                  <p class="text-[10px] text-gray-400 uppercase tracking-wider">Relevance</p>
+                  <p class="text-sm font-bold ${parseFloat(score) > 60 ? 'text-emerald-600' : 'text-gray-500'}">${score}%</p>
+                </div>
+              ` : ''}
+            </div>
+            <div class="px-6 py-4">
+              <p class="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">${doc.snippet || 'No content available.'}</p>
+            </div>
+            <div class="px-6 py-3 border-t border-gray-50 bg-gray-50/50 flex items-center justify-between">
+              <span class="text-[10px] text-gray-400 font-mono">${doc.document_id || '—'}</span>
+              <button class="text-[11px] font-semibold text-slateblue hover:text-terracotta transition-colors duration-150 flex items-center gap-1">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m9.56-5.553a4.5 4.5 0 0 0-1.242-7.244l-4.5-4.5a4.5 4.5 0 0 0-6.364 6.364L5.81 8.688" />
+                </svg>
+                View Full Document
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // Show results
+      loader.classList.add('hidden');
+      results.classList.remove('hidden');
+
+    } catch (err) {
+      loader.classList.add('hidden');
+      errorBox.classList.remove('hidden');
+      errorMsg.textContent = err.message;
+    } finally {
+      btnSearch.disabled = false;
+      btnSearch.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+        </svg>
+        Search
+      `;
+    }
+  });
+});
+</script>
+{% endblock %}

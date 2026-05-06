@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{% block title %}Alerts{% endblock %}
+{% block page_title %}Risk Alerts &amp; Anomaly Feed{% endblock %}
+{% block page_subtitle %}ML-flagged transactions requiring investigation. Sorted by most recent.{% endblock %}
+
+{% block header_actions %}
+<div class="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-4 py-2 text-sm text-obsidian shadow-card">
+  <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+  <span class="font-semibold">{{ alerts_data | length }}</span>
+  <span class="text-gray-400">total alerts</span>
+</div>
+<button class="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-4 py-2 text-sm font-medium text-obsidian shadow-card hover:shadow-card-hover transition-all duration-200">
+  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+  Export CSV
+</button>
+{% endblock %}
+
+{% block content %}
+<!-- FILTER BAR -->
+<section class="mb-6">
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-card p-4">
+    <div class="flex flex-wrap items-center gap-4">
+      <div class="flex items-center gap-2">
+        <label class="text-[10px] uppercase tracking-wider text-gray-400 font-semibold">Severity</label>
+        <select id="filter-severity" class="bg-offwhite border border-gray-200 rounded-lg px-3 py-2 text-xs font-medium text-obsidian focus:outline-none focus:ring-2 focus:ring-slateblue/30 min-w-[140px]">
+          <option value="all" selected>All Severities</option>
+          <option value="critical">Critical</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+        </select>
+      </div>
+      <div class="flex items-center gap-2">
+        <label class="text-[10px] uppercase tracking-wider text-gray-400 font-semibold">Status</label>
+        <select id="filter-status" class="bg-offwhite border border-gray-200 rounded-lg px-3 py-2 text-xs font-medium text-obsidian focus:outline-none focus:ring-2 focus:ring-slateblue/30 min-w-[140px]">
+          <option value="all" selected>All Statuses</option>
+          <option value="open">Open</option>
+          <option value="advised">SAR Generated</option>
+          <option value="resolved">Resolved</option>
+        </select>
+      </div>
+      <div class="flex items-center gap-2">
+        <label class="text-[10px] uppercase tracking-wider text-gray-400 font-semibold">Region</label>
+        <select id="filter-region" class="bg-offwhite border border-gray-200 rounded-lg px-3 py-2 text-xs font-medium text-obsidian focus:outline-none focus:ring-2 focus:ring-slateblue/30 min-w-[140px]">
+          <option value="all" selected>All Regions</option>
+          <option value="north-america">North America</option>
+          <option value="europe">Europe</option>
+          <option value="high-risk">High-Risk Jurisdiction</option>
+        </select>
+      </div>
+      <div class="flex-1"></div>
+      <button id="btn-clear-filters" class="text-xs font-semibold text-slateblue hover:text-terracotta flex items-center gap-1 transition-colors">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"/></svg>
+        Reset
+      </button>
+    </div>
+  </div>
+</section>
+
+<!-- ALERTS TABLE -->
+<section>
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-card overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-gray-100 bg-gray-50/50">
+            <th class="text-left px-6 py-3.5 text-[10px] font-semibold uppercase tracking-wider text-gray-400">Date</th>
+            <th class="text-left px-6 py-3.5 text-[10px] font-semibold uppercase tracking-wider text-gray-400">Entity ID</th>
+            <th class="text-right px-6 py-3.5 text-[10px] font-semibold uppercase tracking-wider text-gray-400">Amount</th>
+            <th class="text-center px-6 py-3.5 text-[10px] font-semibold uppercase tracking-wider text-gray-400">ML Risk Score</th>
+            <th class="text-left px-6 py-3.5 text-[10px] font-semibold uppercase tracking-wider text-gray-400">Anomaly Signature</th>
+            <th class="text-center px-6 py-3.5 text-[10px] font-semibold uppercase tracking-wider text-gray-400">Status</th>
+            <th class="text-center px-6 py-3.5 text-[10px] font-semibold uppercase tracking-wider text-gray-400">Action</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-50">
+          {% if alerts_data %}
+          {% for alert in alerts_data %}
+          {% set txn = alert.get('transaction', {}) %}
+          {% set meta = txn.get('account_metadata', {}) %}
+          {% set score = alert.get('anomaly_score', 0) %}
+          <tr class="hover:bg-offwhite/60 transition-colors duration-150 alert-row"
+              data-status="{{ alert.get('status','open') }}" data-source="{{ alert.get('source','') }}">
+            <td class="px-6 py-4 text-gray-600 text-xs whitespace-nowrap">{{ alert.get('created_at', '—') }}</td>
+            <td class="px-6 py-4">
+              <p class="font-medium text-obsidian text-sm">{{ meta.get('account_holder', 'Unknown') }}</p>
+              <p class="text-[11px] text-gray-400 font-mono">{{ txn.get('transaction_id', '') }}</p>
+            </td>
+            <td class="px-6 py-4 text-right font-mono font-semibold text-obsidian whitespace-nowrap">${{ "{:,.2f}".format(txn.get('amount', 0)) }}</td>
+            <td class="px-6 py-4 text-center">
+              <span class="text-sm font-bold {% if score < -0.05 %}text-terracotta{% else %}text-mutedsage{% endif %}">{{ "%.4f" | format(score) }}</span>
+            </td>
+            <td class="px-6 py-4">
+              <div class="flex flex-wrap gap-1.5">
+                <span class="text-[10px] px-2 py-0.5 rounded-full border border-terracotta/20 bg-terracotta/5 text-terracotta font-semibold">{{ alert.get('source','unknown') | replace('_',' ') | title }}</span>
+                {% if txn.get('amount', 0) >= 100000 %}<span class="text-[10px] px-2 py-0.5 rounded-full border border-red-200 bg-red-50 text-red-700 font-semibold">Large Value</span>{% endif %}
+                {% if txn.get('region','') == 'High-Risk Jurisdiction' %}<span class="text-[10px] px-2 py-0.5 rounded-full border border-amber-200 bg-amber-50 text-amber-700 font-semibold">High-Risk Geo</span>{% endif %}
+                {% if meta.get('historical_avg_transaction',0) > 0 and txn.get('amount',0) > meta.get('historical_avg_transaction',0) * 10 %}<span class="text-[10px] px-2 py-0.5 rounded-full border border-purple-200 bg-purple-50 text-purple-700 font-semibold">Velocity Spike</span>{% endif %}
+              </div>
+            </td>
+            <td class="px-6 py-4 text-center">
+              {% set status = alert.get('status','open') %}
+              {% if status == 'advised' %}
+              <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-700">✓ SAR Generated</span>
+              {% elif status == 'open' %}
+              <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-red-100 text-red-700"><span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span> Pending</span>
+              {% else %}
+              <span class="inline-block px-2.5 py-1 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-600">{{ status | title }}</span>
+              {% endif %}
+            </td>
+            <td class="px-6 py-4 text-center">
+              <a href="/investigate/{{ txn.get('transaction_id','') }}" class="text-[11px] font-semibold text-slateblue hover:text-terracotta transition-colors">Investigate →</a>
+            </td>
+          </tr>
+          {% endfor %}
+          {% else %}
+          <tr>
+            <td colspan="7" class="px-6 py-16 text-center">
+              <p class="text-sm font-medium text-gray-400">No alerts detected yet.</p>
+              <p class="text-xs text-gray-300 mt-1">Run <code class="bg-gray-100 px-1.5 py-0.5 rounded text-[11px]">/api/v1/predict</code> to generate alerts.</p>
+            </td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts_extra %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const rows = document.querySelectorAll('.alert-row');
+  const sf = document.getElementById('filter-status');
+  const srcf = document.getElementById('filter-source');
+  function apply() {
+    rows.forEach(r => {
+      let show = true;
+      if (sf.value !== 'all' && r.dataset.status !== sf.value) show = false;
+      if (srcf && srcf.value !== 'all' && r.dataset.source !== srcf.value) show = false;
+      r.style.display = show ? '' : 'none';
+    });
+  }
+  sf.addEventListener('change', apply);
+  document.getElementById('btn-clear-filters').addEventListener('click', () => {
+    document.querySelectorAll('select').forEach(s => s.value = 'all');
+    rows.forEach(r => r.style.display = '');
+  });
+});
+</script>
+{% endblock %}

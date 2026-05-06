@@ -19,6 +19,7 @@ transactions = None
 alerts = None
 sar_documents = None
 agent_logs = None
+users = None
 
 
 def init_db(app):
@@ -36,7 +37,7 @@ def init_db(app):
 def bind_collections():
     """Bind module-level collection handles after PyMongo is initialized."""
 
-    global transactions, alerts, sar_documents, agent_logs
+    global transactions, alerts, sar_documents, agent_logs, users
 
     database = mongo.db
     if database is None:
@@ -47,6 +48,7 @@ def bind_collections():
     alerts = database.alerts
     sar_documents = database.sar_documents
     agent_logs = database.agent_logs
+    users = database.users
 
 
 def get_collections():
@@ -54,7 +56,7 @@ def get_collections():
 
     if any(
         collection is None
-        for collection in (transactions, alerts, sar_documents, agent_logs)
+        for collection in (transactions, alerts, sar_documents, agent_logs, users)
     ):
         bind_collections()
 
@@ -63,4 +65,5 @@ def get_collections():
         "alerts": alerts,
         "sar_documents": sar_documents,
         "agent_logs": agent_logs,
+        "users": users,
     }

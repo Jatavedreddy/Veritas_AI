@@ -24,7 +24,9 @@ import pandas as pd
 from bson import ObjectId
 from bson.errors import InvalidId
 from dotenv import load_dotenv
-from flask import Blueprint, Flask, jsonify, request
+from flask import Blueprint, Flask, jsonify, render_template, request, session, redirect, url_for, flash
+from functools import wraps
+from werkzeug.security import generate_password_hash, check_password_hash
 
 import sys
 from pathlib import Path
@@ -466,7 +468,8 @@ def create_app():
     init_db(app)
     app.register_blueprint(api_v1)
 
-    @app.route("/", methods=["GET"])
+    # ── API health check ───────────────────────────────────
+    @app.route("/api/health", methods=["GET"])
     def health_check():
         return jsonify(
             {
@@ -475,6 +478,209 @@ def create_app():
                 "timestamp": _utc_now().isoformat(),
             }
         ), 200
+
+    # ── Auth decorator ──────────────────────────────────────
+    def login_required(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if 'user_id' not in session:
+                flash('Please log in to access this page.', 'warning')
+                return redirect(url_for('login_page'))
+            return f(*args, **kwargs)
+        return decorated_function
+
+    # ── Frontend page routes ────────────────────────────────
+    @app.route("/")
+    @app.route("/landing")
+    def landing_page():
+        return render_template("landing.html")
+
+    @app.route("/dashboard")
+    @login_required
+    def dashboard_page():
+        collections = get_collections()
+
+        # ── Aggregate metrics from MongoDB ──────────────────
+        total_transactions = collections["transactions"].count_documents({})
+        total_alerts = collections["alerts"].count_documents({})
+        open_alerts = collections["alerts"].count_documents({"status": "open"})
+
+        # Derive a simple risk score: higher open-alert ratio → higher risk
+        if total_alerts > 0:
+            risk_score = min(int((open_alerts / max(total_alerts, 1)) * 100), 100)
+        else:
+            risk_score = 0
+
+        risk_level = (
+            "High" if risk_score >= 65
+            else "Medium" if risk_score >= 35
+            else "Low"
+        )
+
+        metrics = {
+            "total_transactions": total_transactions,
+            "total_alerts": total_alerts,
+            "open_alerts": open_alerts,
+            "risk_score": risk_score,
+            "risk_level": risk_level,
+        }
+
+        # ── Recent transactions (5 most recent) ────────────
+        # Sort by _id descending — always indexed, encodes insertion order.
+        recent_cursor = (
+            collections["transactions"]
+            .find()
+            .sort("_id", -1)
+            .limit(5)
+        )
+        recent_transactions = [
+            _jsonify_value(doc) for doc in recent_cursor
+        ]
+
+        return render_template(
+            "dashboard.html",
+            active_page="dashboard",
+            metrics=metrics,
+            recent_transactions=recent_transactions,
+        )
+
+    @app.route("/alerts")
+    @login_required
+    def alerts_page():
+        collections = get_collections()
+        # Fetch all alerts, sorted by _id descending (CosmosDB-safe)
+        alerts_cursor = (
+            collections["alerts"]
+            .find()
+            .sort("_id", -1)
+        )
+        alerts_data = [_jsonify_value(doc) for doc in alerts_cursor]
+        return render_template(
+            "alerts.html",
+            active_page="alerts",
+            alerts_data=alerts_data,
+        )
+
+    @app.route("/settings")
+    @login_required
+    def settings_page():
+        return render_template("settings.html", active_page="settings")
+
+    @app.route("/portfolio")
+    @login_required
+    def portfolio_page():
+        return render_template("portfolio.html", active_page="portfolio")
+
+    @app.route("/compliance")
+    @login_required
+    def compliance_page():
+        return render_template("compliance.html", active_page="compliance")
+
+    @app.route("/investigate/<transaction_id>")
+    @login_required
+    def investigate_page(transaction_id):
+        collections = get_collections()
+
+        # Find the transaction document by its transaction_id field
+        transaction = collections["transactions"].find_one(
+            {"transaction_id": transaction_id}
+        )
+        if not transaction:
+            return render_template(
+                "base.html",
+                active_page="investigation",
+                error="Transaction not found.",
+            ), 404
+
+        # Look for a linked alert (ML-flagged)
+        alert = collections["alerts"].find_one(
+            {"transaction_id": transaction_id}
+        )
+
+        return render_template(
+            "investigate.html",
+            active_page="investigation",
+            transaction=_jsonify_value(transaction),
+            alert=_jsonify_value(alert) if alert else None,
+        )
+
+    @app.route("/login", methods=["GET", "POST"])
+    def login_page():
+        if request.method == "GET":
+            return render_template("login.html")
+
+        # ── POST: authenticate user ─────────────────────────
+        email = request.form.get("email", "").strip().lower()
+        password = request.form.get("password", "")
+
+        if not email or not password:
+            flash("Please enter both email and password.", "error")
+            return render_template("login.html"), 400
+
+        collections = get_collections()
+        try:
+            user = collections["users"].find_one({"email": email})
+        except Exception as e:
+            logging.error("Login query failed: %s", e)
+            flash("Service temporarily unavailable. Please try again.", "error")
+            return render_template("login.html"), 503
+
+        if not user or not check_password_hash(user.get("password_hash", ""), password):
+            flash("Invalid credentials. Please try again.", "error")
+            return render_template("login.html"), 401
+
+        # Success — create session
+        session["user_id"] = str(user["_id"])
+        session["user_name"] = user.get("name", "User")
+        session["user_role"] = user.get("role", "Analyst")
+        logging.info("User %s logged in successfully.", email)
+        return redirect(url_for("dashboard_page"))
+
+    @app.route("/register", methods=["GET", "POST"])
+    def register_page():
+        if request.method == "GET":
+            return render_template("register.html")
+
+        # ── POST: create new user ───────────────────────────
+        name = request.form.get("name", "").strip()
+        email = request.form.get("email", "").strip().lower()
+        role = request.form.get("role", "Risk Analyst").strip()
+        password = request.form.get("password", "")
+
+        if not name or not email or not password:
+            flash("All fields are required.", "error")
+            return render_template("register.html"), 400
+
+        collections = get_collections()
+
+        # Check for duplicate email
+        if collections["users"].find_one({"email": email}):
+            flash("An account with this email already exists.", "error")
+            return render_template("register.html"), 409
+
+        # Insert new user
+        user_doc = {
+            "name": name,
+            "email": email,
+            "role": role,
+            "password_hash": generate_password_hash(password),
+            "created_at": _utc_now(),
+        }
+        try:
+            collections["users"].insert_one(user_doc)
+        except Exception as e:
+            logging.error("Failed to create user: %s", e)
+            flash("Account creation failed. Please try again later.", "error")
+            return render_template("register.html"), 500
+
+        logging.info("New user registered: %s (%s)", email, role)
+        flash("Account created successfully! Please sign in.", "success")
+        return redirect(url_for("login_page"))
+
+    @app.route("/logout")
+    def logout_page():
+        session.clear()
+        return redirect(url_for("landing_page"))
 
     return app
 
