@@ -1,156 +1,182 @@
 {% extends "base.html" %}
 
-{% block title %}Compliance Search{% endblock %}
+{% block title %}Compliance Assistant{% endblock %}
 
-{% block page_title %}Regulatory Compliance Search{% endblock %}
-{% block page_subtitle %}Query SEC regulations, Basel III frameworks, and global sanctions using AI-powered semantic search.{% endblock %}
+{% block page_title %}Regulatory Compliance Assistant{% endblock %}
+{% block page_subtitle %}AI-powered conversational search across SEC regulations, Basel III, and global sanctions.{% endblock %}
 
 {% block header_actions %}
-<div class="flex items-center gap-2 text-xs text-gray-400">
-  <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-    <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
-  </svg>
-  <span>Powered by Azure AI Search + Sentence Transformers</span>
+<div class="flex items-center gap-3">
+  <button id="btn-clear-chat"
+          class="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-4 py-2 text-sm font-medium text-obsidian shadow-card hover:shadow-card-hover hover:border-gray-300 transition-all duration-200">
+    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" />
+    </svg>
+    New Chat
+  </button>
+  <div class="flex items-center gap-2 text-xs text-gray-400">
+    <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
+    </svg>
+    <span>RAG · Azure AI Search + Groq LLM</span>
+  </div>
 </div>
 {% endblock %}
 
 
 {% block content %}
 
-<!-- ═══════════════════════════════════════════════════════════
-     SEARCH BAR
-     ═══════════════════════════════════════════════════════════ -->
-<section id="compliance-search-section" class="mb-8">
-  <div class="bg-white rounded-2xl border border-gray-100 shadow-card p-6">
+<style>
+  /* ── Chat container ──────────────────────────────────────── */
+  #chat-container {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 160px);
+    max-height: calc(100vh - 160px);
+  }
+  #chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1.5rem 0;
+    scroll-behavior: smooth;
+  }
+  #chat-messages::-webkit-scrollbar { width: 6px; }
+  #chat-messages::-webkit-scrollbar-track { background: transparent; }
+  #chat-messages::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
 
-    <form id="compliance-search-form" class="flex items-center gap-4">
-      <!-- Search input -->
-      <div class="flex-1 relative">
-        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-gray-300" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
-          </svg>
-        </div>
-        <input id="search-input"
-               type="text"
-               placeholder="Search SEC regulations and global sanctions..."
-               autocomplete="off"
-               class="w-full pl-12 pr-4 py-4 text-sm text-obsidian bg-offwhite border border-gray-200
-                      rounded-xl placeholder-gray-400
-                      focus:outline-none focus:ring-2 focus:ring-slateblue/30 focus:border-slateblue/40
-                      transition-all duration-200" />
-      </div>
+  /* ── Message bubbles ─────────────────────────────────────── */
+  .msg-row { display: flex; gap: 0.75rem; margin-bottom: 1.5rem; max-width: 85%; animation: msgFadeIn 0.3s ease-out; }
+  .msg-row.user { margin-left: auto; flex-direction: row-reverse; }
+  .msg-row.assistant { margin-right: auto; }
 
-      <!-- Search button -->
-      <button id="btn-search" type="submit"
-              class="flex items-center gap-2 bg-obsidian hover:bg-obsidian-light text-white
-                     font-semibold text-sm rounded-xl px-6 py-4
-                     shadow-lg hover:shadow-xl transition-all duration-200
-                     disabled:opacity-50 disabled:cursor-not-allowed shrink-0">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+  .msg-avatar {
+    width: 2rem; height: 2rem; border-radius: 0.5rem;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.7rem; font-weight: 700; flex-shrink: 0; margin-top: 2px;
+  }
+  .msg-avatar.user-av { background: #4A6B82; color: white; }
+  .msg-avatar.bot-av { background: linear-gradient(135deg, #D96B52, #B85640); color: white; }
+
+  .msg-bubble {
+    padding: 0.875rem 1.125rem; border-radius: 1rem; font-size: 0.875rem; line-height: 1.65;
+    position: relative;
+  }
+  .msg-row.user .msg-bubble {
+    background: #1E1E1E; color: white; border-bottom-right-radius: 0.25rem;
+  }
+  .msg-row.assistant .msg-bubble {
+    background: white; color: #1E1E1E; border: 1px solid #e5e7eb;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04); border-bottom-left-radius: 0.25rem;
+  }
+
+  /* Markdown inside assistant bubbles */
+  .msg-bubble h3 { font-family: 'Playfair Display', serif; font-size: 1rem; font-weight: 600; margin: 0.75rem 0 0.375rem; }
+  .msg-bubble h3:first-child { margin-top: 0; }
+  .msg-bubble strong { font-weight: 600; }
+  .msg-bubble ul, .msg-bubble ol { padding-left: 1.25rem; margin: 0.375rem 0; }
+  .msg-bubble li { margin-bottom: 0.25rem; }
+  .msg-bubble p { margin: 0.375rem 0; }
+  .msg-bubble p:first-child { margin-top: 0; }
+  .msg-bubble p:last-child { margin-bottom: 0; }
+  .msg-bubble code { background: rgba(0,0,0,0.06); padding: 0.125rem 0.375rem; border-radius: 0.25rem; font-size: 0.8rem; }
+
+  /* ── Sources pills ───────────────────────────────────────── */
+  .sources-row { display: flex; flex-wrap: wrap; gap: 0.375rem; margin-top: 0.625rem; }
+  .source-pill {
+    display: inline-flex; align-items: center; gap: 0.25rem;
+    font-size: 0.65rem; font-weight: 600; padding: 0.2rem 0.5rem;
+    border-radius: 9999px; border: 1px solid; transition: all 0.15s;
+  }
+  .source-pill.cat-AML { background: rgba(217,107,82,0.08); color: #D96B52; border-color: rgba(217,107,82,0.2); }
+  .source-pill.cat-Sanctions { background: rgba(239,68,68,0.06); color: #b91c1c; border-color: rgba(239,68,68,0.2); }
+  .source-pill.cat-BaselIII, .source-pill.cat-Basel { background: rgba(74,107,130,0.08); color: #4A6B82; border-color: rgba(74,107,130,0.2); }
+  .source-pill.cat-KYC { background: rgba(107,122,106,0.08); color: #6B7A6A; border-color: rgba(107,122,106,0.2); }
+  .source-pill.cat-default { background: #f3f4f6; color: #6b7280; border-color: #e5e7eb; }
+
+  /* ── Typing indicator ────────────────────────────────────── */
+  .typing-dot { width: 6px; height: 6px; border-radius: 50%; background: #9ca3af; animation: typingBounce 1.4s infinite ease-in-out; }
+  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+  @keyframes typingBounce {
+    0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+    40% { transform: scale(1); opacity: 1; }
+  }
+  @keyframes msgFadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── Welcome state ───────────────────────────────────────── */
+  #welcome-state { animation: msgFadeIn 0.5s ease-out; }
+</style>
+
+<div id="chat-container">
+
+  <!-- ═══ MESSAGES AREA ═══════════════════════════════════════ -->
+  <div id="chat-messages">
+
+    <!-- Welcome / empty state -->
+    <div id="welcome-state" class="flex flex-col items-center justify-center h-full text-center px-4">
+      <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-terracotta/10 to-slateblue/10 flex items-center justify-center mb-5">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-terracotta/60" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.526 1.526 0 0 1 1.037-.443 48.282 48.282 0 0 0 5.68-.494c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
         </svg>
-        Search
+      </div>
+      <h2 class="text-xl font-serif font-bold text-obsidian mb-2">Veritas Compliance Assistant</h2>
+      <p class="text-sm text-gray-500 max-w-lg mb-8">
+        Ask questions about SEC regulations, Basel III frameworks, OFAC sanctions, Bank Secrecy Act,
+        and other financial compliance topics. Responses are grounded in our regulatory knowledge base via RAG.
+      </p>
+
+      <!-- Quick query suggestions -->
+      <div class="flex flex-wrap items-center justify-center gap-2 max-w-2xl">
+        <button type="button" class="quick-query flex items-center gap-1.5 text-xs px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 bg-white shadow-card hover:shadow-card-hover hover:border-slateblue/30 hover:text-slateblue transition-all duration-200">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-terracotta" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+          What are the Bank Secrecy Act reporting requirements?
+        </button>
+        <button type="button" class="quick-query flex items-center gap-1.5 text-xs px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 bg-white shadow-card hover:shadow-card-hover hover:border-slateblue/30 hover:text-slateblue transition-all duration-200">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-slateblue" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>
+          Explain OFAC sanctions screening obligations
+        </button>
+        <button type="button" class="quick-query flex items-center gap-1.5 text-xs px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 bg-white shadow-card hover:shadow-card-hover hover:border-slateblue/30 hover:text-slateblue transition-all duration-200">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-mutedsage" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75Z M9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625Z M16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" /></svg>
+          Basel III capital adequacy ratios
+        </button>
+        <button type="button" class="quick-query flex items-center gap-1.5 text-xs px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 bg-white shadow-card hover:shadow-card-hover hover:border-slateblue/30 hover:text-slateblue transition-all duration-200">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" /></svg>
+          Anti-money laundering due diligence
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ═══ INPUT BAR ═══════════════════════════════════════════ -->
+  <div class="shrink-0 border-t border-gray-100 bg-white/80 backdrop-blur-sm rounded-b-2xl">
+    <form id="chat-form" class="flex items-end gap-3 px-4 py-3">
+      <div class="flex-1 relative">
+        <textarea id="chat-input"
+                  rows="1"
+                  placeholder="Ask about regulations, compliance, or sanctions..."
+                  class="w-full resize-none pl-4 pr-4 py-3 text-sm text-obsidian bg-offwhite border border-gray-200 rounded-xl placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-slateblue/30 focus:border-slateblue/40 transition-all duration-200"
+                  style="max-height: 120px;"></textarea>
+      </div>
+      <button id="btn-send" type="submit"
+              class="flex items-center justify-center w-11 h-11 bg-obsidian hover:bg-obsidian-light text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed shrink-0">
+        <svg id="send-icon" xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+        </svg>
+        <!-- Spinner (hidden) -->
+        <svg id="send-spinner" class="hidden w-5 h-5 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+        </svg>
       </button>
     </form>
-
-    <!-- Quick queries -->
-    <div class="mt-4 flex flex-wrap items-center gap-2">
-      <span class="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mr-1">Try:</span>
-      <button type="button" class="quick-query text-xs px-3 py-1 rounded-full border border-gray-200 text-gray-500 hover:border-slateblue/40 hover:text-slateblue hover:bg-slateblue/5 transition-all duration-200">
-        Bank Secrecy Act reporting requirements
-      </button>
-      <button type="button" class="quick-query text-xs px-3 py-1 rounded-full border border-gray-200 text-gray-500 hover:border-slateblue/40 hover:text-slateblue hover:bg-slateblue/5 transition-all duration-200">
-        OFAC sanctions screening obligations
-      </button>
-      <button type="button" class="quick-query text-xs px-3 py-1 rounded-full border border-gray-200 text-gray-500 hover:border-slateblue/40 hover:text-slateblue hover:bg-slateblue/5 transition-all duration-200">
-        Basel III capital adequacy ratios
-      </button>
-      <button type="button" class="quick-query text-xs px-3 py-1 rounded-full border border-gray-200 text-gray-500 hover:border-slateblue/40 hover:text-slateblue hover:bg-slateblue/5 transition-all duration-200">
-        Anti-money laundering due diligence
-      </button>
-    </div>
-
+    <p class="text-center text-[10px] text-gray-300 pb-2">Veritas AI may produce inaccurate information. Always verify with official regulatory sources.</p>
   </div>
-</section>
 
-
-<!-- ═══════════════════════════════════════════════════════════
-     SEARCH LOADING STATE
-     ═══════════════════════════════════════════════════════════ -->
-<div id="search-loader" class="hidden mb-8">
-  <div class="bg-white rounded-2xl border border-gray-100 shadow-card p-10 flex flex-col items-center">
-    <div class="relative w-10 h-10 mb-4">
-      <div class="absolute inset-0 rounded-full border-2 border-gray-200"></div>
-      <div class="absolute inset-0 rounded-full border-2 border-transparent border-t-slateblue animate-spin"></div>
-    </div>
-    <p class="text-sm font-medium text-obsidian mb-1">Searching regulatory knowledge base...</p>
-    <p class="text-xs text-gray-400">Encoding query with Sentence Transformers and performing vector similarity search.</p>
-  </div>
-</div>
-
-
-<!-- ═══════════════════════════════════════════════════════════
-     SEARCH RESULTS (hidden initially)
-     ═══════════════════════════════════════════════════════════ -->
-<div id="search-results" class="hidden">
-  <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
-
-    <!-- Left Column — AI Synthesized Answer (2/5 width) -->
-    <div class="lg:col-span-2">
-      <div class="bg-white rounded-2xl border border-gray-100 shadow-card overflow-hidden sticky top-24">
-
-        <div class="flex items-center gap-2 px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-slateblue/5 to-transparent">
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-slateblue" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
-          </svg>
-          <h3 class="text-sm font-semibold text-obsidian">AI Synthesized Answer</h3>
-        </div>
-
-        <div id="ai-summary" class="px-6 py-5">
-          <!-- Populated by JS -->
-        </div>
-
-      </div>
-    </div>
-
-    <!-- Right Column — Direct Regulatory Citations (3/5 width) -->
-    <div class="lg:col-span-3 space-y-4">
-
-      <div class="flex items-center justify-between mb-2">
-        <div class="flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-          </svg>
-          <h3 class="text-sm font-semibold text-obsidian">Direct Regulatory Citations</h3>
-        </div>
-        <span id="result-count" class="text-xs text-gray-400"></span>
-      </div>
-
-      <!-- Citation cards injected here -->
-      <div id="citation-cards" class="space-y-4">
-        <!-- Populated by JS -->
-      </div>
-
-    </div>
-
-  </div>
-</div>
-
-
-<!-- ═══════════════════════════════════════════════════════════
-     ERROR STATE
-     ═══════════════════════════════════════════════════════════ -->
-<div id="search-error" class="hidden mb-8">
-  <div class="bg-red-50 border border-red-200 rounded-xl p-5 flex items-start gap-3">
-    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-red-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-      <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
-    </svg>
-    <div>
-      <p class="text-sm font-semibold text-red-800">Search Failed</p>
-      <p id="search-error-msg" class="text-xs text-red-600 mt-1"></p>
-    </div>
-  </div>
 </div>
 
 {% endblock %}
@@ -159,18 +185,33 @@
 {% block scripts_extra %}
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-  const form       = document.getElementById('compliance-search-form');
-  const input      = document.getElementById('search-input');
-  const btnSearch  = document.getElementById('btn-search');
-  const loader     = document.getElementById('search-loader');
-  const results    = document.getElementById('search-results');
-  const errorBox   = document.getElementById('search-error');
-  const errorMsg   = document.getElementById('search-error-msg');
-  const aiSummary  = document.getElementById('ai-summary');
-  const citations  = document.getElementById('citation-cards');
-  const resultCount = document.getElementById('result-count');
+  const form = document.getElementById('chat-form');
+  const input = document.getElementById('chat-input');
+  const btnSend = document.getElementById('btn-send');
+  const sendIcon = document.getElementById('send-icon');
+  const sendSpinner = document.getElementById('send-spinner');
+  const messagesEl = document.getElementById('chat-messages');
+  const welcomeState = document.getElementById('welcome-state');
+  const btnClear = document.getElementById('btn-clear-chat');
 
-  // Quick-query buttons
+  let conversationHistory = [];
+  let isLoading = false;
+
+  // ── Auto-resize textarea ─────────────────────────────────
+  input.addEventListener('input', () => {
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+  });
+
+  // ── Enter to send (Shift+Enter for newline) ──────────────
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      form.dispatchEvent(new Event('submit'));
+    }
+  });
+
+  // ── Quick query buttons ──────────────────────────────────
   document.querySelectorAll('.quick-query').forEach(btn => {
     btn.addEventListener('click', () => {
       input.value = btn.textContent.trim();
@@ -178,141 +219,152 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Category → color mapping
-  const categoryColors = {
-    'AML':        { bg: 'bg-terracotta/10', text: 'text-terracotta', border: 'border-terracotta/20' },
-    'Sanctions':  { bg: 'bg-red-50',        text: 'text-red-700',    border: 'border-red-200' },
-    'Basel III':  { bg: 'bg-slateblue/10',  text: 'text-slateblue',  border: 'border-slateblue/20' },
-    'KYC':        { bg: 'bg-mutedsage/10',  text: 'text-mutedsage',  border: 'border-mutedsage/20' },
-    'default':    { bg: 'bg-gray-100',      text: 'text-gray-600',   border: 'border-gray-200' },
-  };
+  // ── Clear chat ───────────────────────────────────────────
+  btnClear.addEventListener('click', () => {
+    conversationHistory = [];
+    messagesEl.innerHTML = '';
+    messagesEl.appendChild(welcomeState);
+    welcomeState.classList.remove('hidden');
+    input.value = '';
+    input.style.height = 'auto';
+  });
 
-  function getCatColor(cat) {
-    return categoryColors[cat] || categoryColors['default'];
+  // ── Category color class ─────────────────────────────────
+  function catClass(cat) {
+    if (!cat) return 'cat-default';
+    if (cat.includes('Basel')) return 'cat-BaselIII';
+    const map = { 'AML': 'cat-AML', 'Sanctions': 'cat-Sanctions', 'KYC': 'cat-KYC' };
+    return map[cat] || 'cat-default';
   }
 
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
+  // ── Simple markdown → HTML ───────────────────────────────
+  function md(text) {
+    if (!text) return '';
+    let h = text
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+      .replace(/^## (.+)$/gm, '<h3>$1</h3>')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/^\* (.+)$/gm, '<li>$1</li>')
+      .replace(/^- (.+)$/gm, '<li>$1</li>')
+      .replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+    // Wrap consecutive <li> in <ul>
+    h = h.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>');
+    // Paragraphs
+    h = h.split(/\n{2,}/).map(p => {
+      p = p.trim();
+      if (!p || p.startsWith('<h') || p.startsWith('<ul') || p.startsWith('<ol')) return p;
+      return '<p>' + p.replace(/\n/g, '<br>') + '</p>';
+    }).join('');
+    return h;
+  }
 
-    const query = input.value.trim();
-    if (!query) { input.focus(); return; }
+  // ── Append message to chat ───────────────────────────────
+  function appendMessage(role, content, sources) {
+    if (welcomeState && !welcomeState.classList.contains('hidden')) {
+      welcomeState.classList.add('hidden');
+    }
 
-    // UI → loading
-    loader.classList.remove('hidden');
-    results.classList.add('hidden');
-    errorBox.classList.add('hidden');
-    btnSearch.disabled = true;
-    btnSearch.innerHTML = `
-      <svg class="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-      </svg>
-      Searching...
+    const row = document.createElement('div');
+    row.className = `msg-row ${role}`;
+
+    const avClass = role === 'user' ? 'user-av' : 'bot-av';
+    const avLabel = role === 'user' ? 'You' : 'V';
+    const bubbleContent = role === 'user' ? content.replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>') : md(content);
+
+    let sourcesHtml = '';
+    if (sources && sources.length > 0) {
+      sourcesHtml = '<div class="sources-row">' +
+        sources.map(s =>
+          `<span class="source-pill ${catClass(s.category)}">`+
+          `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>`+
+          `${s.citation}</span>`
+        ).join('') +
+        '</div>';
+    }
+
+    row.innerHTML = `
+      <div class="msg-avatar ${avClass}">${avLabel}</div>
+      <div>
+        <div class="msg-bubble">${bubbleContent}</div>
+        ${sourcesHtml}
+      </div>
     `;
 
+    messagesEl.appendChild(row);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  // ── Typing indicator ─────────────────────────────────────
+  function showTyping() {
+    const row = document.createElement('div');
+    row.className = 'msg-row assistant';
+    row.id = 'typing-indicator';
+    row.innerHTML = `
+      <div class="msg-avatar bot-av">V</div>
+      <div class="msg-bubble" style="display:flex;align-items:center;gap:4px;padding:0.75rem 1.25rem;">
+        <div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>
+      </div>
+    `;
+    messagesEl.appendChild(row);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function hideTyping() {
+    const el = document.getElementById('typing-indicator');
+    if (el) el.remove();
+  }
+
+  // ── Lock / unlock UI ─────────────────────────────────────
+  function setLoading(v) {
+    isLoading = v;
+    btnSend.disabled = v;
+    sendIcon.classList.toggle('hidden', v);
+    sendSpinner.classList.toggle('hidden', !v);
+  }
+
+  // ── Send message ─────────────────────────────────────────
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (isLoading) return;
+
+    const msg = input.value.trim();
+    if (!msg) { input.focus(); return; }
+
+    // Show user message
+    appendMessage('user', msg);
+    conversationHistory.push({ role: 'user', content: msg });
+
+    input.value = '';
+    input.style.height = 'auto';
+    setLoading(true);
+    showTyping();
+
     try {
-      const res = await fetch('/api/v1/search', {
+      const res = await fetch('/api/v1/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query }),
+        body: JSON.stringify({ message: msg, history: conversationHistory.slice(0, -1) }),
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Search request failed');
+      hideTyping();
 
-      const docs = data.results || [];
+      if (!res.ok) throw new Error(data.error || 'Request failed');
 
-      // ── AI Summary ──────────────────────────────────────
-      if (docs.length > 0) {
-        const summaryHtml = `
-          <div class="mb-4">
-            <p class="text-xs text-gray-400 mb-2 font-semibold uppercase tracking-wider">Query</p>
-            <p class="text-sm text-obsidian font-medium italic">"${data.query}"</p>
-          </div>
-          <div class="border-t border-gray-100 pt-4">
-            <p class="text-xs text-gray-400 mb-3 font-semibold uppercase tracking-wider">RAG Context Summary</p>
-            <p class="text-sm text-gray-700 leading-relaxed">
-              Found <strong class="text-obsidian">${docs.length}</strong> relevant regulatory document${docs.length !== 1 ? 's' : ''} matching your query.
-              ${docs.map(d => `<span class="text-slateblue font-medium">${d.citation || 'Untitled'}</span>`).join(', ')}
-              — covering
-              ${[...new Set(docs.map(d => d.jurisdiction).filter(Boolean))].join(', ') || 'multiple jurisdictions'}.
-            </p>
-          </div>
-          <div class="mt-4 pt-4 border-t border-gray-100 flex flex-wrap gap-2">
-            ${docs.map(d => {
-              const c = getCatColor(d.category);
-              return `<span class="text-[10px] px-2 py-0.5 rounded-full border ${c.border} ${c.bg} ${c.text} font-semibold">${d.category || 'General'}</span>`;
-            }).join('')}
-          </div>
-        `;
-        aiSummary.innerHTML = summaryHtml;
-      } else {
-        aiSummary.innerHTML = `
-          <div class="py-6 text-center">
-            <p class="text-sm text-gray-400">No results found for your query.</p>
-            <p class="text-xs text-gray-300 mt-1">Try broadening your search terms.</p>
-          </div>
-        `;
-      }
+      const reply = data.reply || 'No response generated.';
+      const sources = data.sources || [];
 
-      // ── Citation Cards ────────────────────────────────
-      resultCount.textContent = `${docs.length} result${docs.length !== 1 ? 's' : ''} found`;
-
-      citations.innerHTML = docs.map((doc, i) => {
-        const c = getCatColor(doc.category);
-        const score = doc.score != null ? (doc.score * 100).toFixed(1) : null;
-        return `
-          <div class="bg-white rounded-2xl border border-gray-100 shadow-card hover:shadow-card-hover transition-shadow duration-200 overflow-hidden">
-            <div class="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
-              <div class="flex items-center gap-3">
-                <span class="w-7 h-7 rounded-lg ${c.bg} flex items-center justify-center text-xs font-bold ${c.text}">${i + 1}</span>
-                <div>
-                  <h4 class="text-sm font-semibold text-obsidian">${doc.citation || 'Untitled Document'}</h4>
-                  <div class="flex items-center gap-2 mt-0.5">
-                    <span class="text-[10px] px-2 py-0.5 rounded-full border ${c.border} ${c.bg} ${c.text} font-semibold">${doc.category || 'General'}</span>
-                    ${doc.jurisdiction ? `<span class="text-[10px] text-gray-400">${doc.jurisdiction}</span>` : ''}
-                  </div>
-                </div>
-              </div>
-              ${score ? `
-                <div class="text-right">
-                  <p class="text-[10px] text-gray-400 uppercase tracking-wider">Relevance</p>
-                  <p class="text-sm font-bold ${parseFloat(score) > 60 ? 'text-emerald-600' : 'text-gray-500'}">${score}%</p>
-                </div>
-              ` : ''}
-            </div>
-            <div class="px-6 py-4">
-              <p class="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">${doc.snippet || 'No content available.'}</p>
-            </div>
-            <div class="px-6 py-3 border-t border-gray-50 bg-gray-50/50 flex items-center justify-between">
-              <span class="text-[10px] text-gray-400 font-mono">${doc.document_id || '—'}</span>
-              <button class="text-[11px] font-semibold text-slateblue hover:text-terracotta transition-colors duration-150 flex items-center gap-1">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m9.56-5.553a4.5 4.5 0 0 0-1.242-7.244l-4.5-4.5a4.5 4.5 0 0 0-6.364 6.364L5.81 8.688" />
-                </svg>
-                View Full Document
-              </button>
-            </div>
-          </div>
-        `;
-      }).join('');
-
-      // Show results
-      loader.classList.add('hidden');
-      results.classList.remove('hidden');
+      appendMessage('assistant', reply, sources);
+      conversationHistory.push({ role: 'assistant', content: reply });
 
     } catch (err) {
-      loader.classList.add('hidden');
-      errorBox.classList.remove('hidden');
-      errorMsg.textContent = err.message;
+      hideTyping();
+      appendMessage('assistant', `⚠️ **Error:** ${err.message}\n\nPlease try again or rephrase your question.`);
     } finally {
-      btnSearch.disabled = false;
-      btnSearch.innerHTML = `
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
-        </svg>
-        Search
-      `;
+      setLoading(false);
+      input.focus();
     }
   });
 });

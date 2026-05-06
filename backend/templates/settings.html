@@ -239,22 +239,40 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('panel-' + t.dataset.tab).classList.add('active');
   }));
 
-  // ── Toggle switches ──
+  // ── Restore from LocalStorage ──
+  const slider = document.getElementById('contamination-slider');
+  const label = document.getElementById('contamination-value');
+  const storedContamination = localStorage.getItem('veritas_contamination');
+  if (storedContamination && slider && label) {
+    slider.value = storedContamination;
+    label.textContent = parseFloat(storedContamination).toFixed(2);
+  }
+
   document.querySelectorAll('.toggle-track').forEach(track => {
+    const agent = track.dataset.agent;
+    const isEnabled = localStorage.getItem('veritas_agent_' + agent);
+    if (isEnabled !== null) {
+      if (isEnabled === 'true') track.classList.add('on');
+      else track.classList.remove('on');
+    }
     track.addEventListener('click', () => track.classList.toggle('on'));
   });
 
-  // ── Contamination slider ──
-  const slider = document.getElementById('contamination-slider');
-  const label = document.getElementById('contamination-value');
+  // ── Contamination slider real-time update ──
   if (slider && label) {
     slider.addEventListener('input', () => label.textContent = parseFloat(slider.value).toFixed(2));
   }
 
-  // ── Save button → toast ──
+  // ── Save button → toast & LocalStorage ──
   const saveBtn = document.getElementById('btn-save-config');
   const toast = document.getElementById('toast');
   saveBtn.addEventListener('click', () => {
+    if (slider) localStorage.setItem('veritas_contamination', slider.value);
+    
+    document.querySelectorAll('.toggle-track').forEach(track => {
+      localStorage.setItem('veritas_agent_' + track.dataset.agent, track.classList.contains('on'));
+    });
+
     toast.classList.add('show');
     setTimeout(() => toast.classList.remove('show'), 3000);
   });

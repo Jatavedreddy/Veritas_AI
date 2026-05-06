@@ -373,6 +373,107 @@ def search_regulations():
         return jsonify({"error": "Failed to search regulatory context", "details": str(exc)}), 500
 
 
+@api_v1.route("/chat", methods=["POST"])
+def chat_compliance():
+    """
+    Conversational RAG endpoint for the Compliance Chatbot.
+    Accepts: { "message": "...", "history": [ {"role": "user"|"assistant", "content": "..."}, ... ] }
+    Returns: { "reply": "...", "sources": [...] }
+    """
+    try:
+        payload, error = _request_json()
+        if error:
+            return error
+
+        message = payload.get("message", "").strip() if isinstance(payload, dict) else ""
+        if not message:
+            return jsonify({"error": "Payload must include a non-empty 'message' string."}), 400
+
+        history = payload.get("history", [])
+        if not isinstance(history, list):
+            history = []
+
+        # ── Step 1: Retrieve RAG context ────────────────────────────
+        rag_results = _search_regulations(message)
+        context_blocks = []
+        sources = []
+        for doc in rag_results:
+            citation = doc.get("citation", "Untitled")
+            snippet = doc.get("snippet", "")
+            category = doc.get("category", "General")
+            jurisdiction = doc.get("jurisdiction", "")
+            context_blocks.append(
+                f"[{citation}] ({category} — {jurisdiction})\n{snippet}"
+            )
+            sources.append({
+                "citation": citation,
+                "category": category,
+                "jurisdiction": jurisdiction,
+                "document_id": doc.get("document_id", ""),
+                "score": doc.get("score"),
+            })
+
+        rag_context = "\n\n---\n\n".join(context_blocks) if context_blocks else "No regulatory documents found."
+
+        # ── Step 2: Build the prompt for Groq ───────────────────────
+        system_prompt = (
+            "You are the Veritas Compliance Assistant, an expert AI advisor on financial regulations, "
+            "compliance frameworks, and risk management. You have access to a curated regulatory "
+            "knowledge base that includes SEC regulations, Basel III, Bank Secrecy Act, OFAC sanctions, "
+            "and SAR filing requirements.\n\n"
+            "REGULATORY CONTEXT (retrieved from the knowledge base for this query):\n"
+            f"{rag_context}\n\n"
+            "INSTRUCTIONS:\n"
+            "- Answer the user's question thoroughly using the regulatory context above.\n"
+            "- Cite specific statutes, rules, and regulation names when applicable.\n"
+            "- If the context doesn't contain enough information, say so honestly.\n"
+            "- Use clear, professional language suitable for compliance officers.\n"
+            "- Format your response with markdown (bold, bullet points, headers) for readability.\n"
+            "- Keep answers focused and concise but comprehensive.\n"
+        )
+
+        # Build messages array for Groq
+        messages = [{"role": "system", "content": system_prompt}]
+
+        # Add conversation history (limit to last 10 exchanges to stay within token limits)
+        for entry in history[-20:]:
+            role = entry.get("role", "user")
+            content = entry.get("content", "")
+            if role in ("user", "assistant") and content:
+                messages.append({"role": role, "content": content})
+
+        messages.append({"role": "user", "content": message})
+
+        # ── Step 3: Call Groq LLM ───────────────────────────────────
+        groq_api_key = os.getenv("GROQ_API_KEY", "")
+        groq_model = os.getenv("GROQ_MODEL", "groq/llama3-70b-8192")
+
+        # Strip the "groq/" prefix for direct API calls
+        model_name = groq_model.replace("groq/", "") if groq_model.startswith("groq/") else groq_model
+
+        from groq import Groq
+        client = Groq(api_key=groq_api_key)
+        completion = client.chat.completions.create(
+            model=model_name,
+            messages=messages,
+            temperature=0.2,
+            max_tokens=1500,
+        )
+
+        reply = completion.choices[0].message.content
+
+        logging.info("Chat response generated for query: %s", message[:80])
+        return jsonify({
+            "status": "success",
+            "reply": reply,
+            "sources": sources,
+        }), 200
+
+    except Exception as exc:
+        logging.exception("Chat endpoint failed")
+        return jsonify({"error": "Failed to generate response", "details": str(exc)}), 500
+
+
 @api_v1.route("/advise", methods=["POST"])
 def advise_on_alert():
     try:
@@ -451,6 +552,72 @@ def advise_on_alert():
     except Exception as exc:
         logging.exception("Failed to run advisory workflow")
         return jsonify({"error": "Failed to run advisory workflow", "details": str(exc)}), 500
+
+
+@api_v1.route("/portfolio/analyze", methods=["POST"])
+def analyze_portfolio():
+    """
+    RAG/LLM endpoint that analyzes a client's investment portfolio
+    and returns a strategic wealth advisory assessment.
+    """
+    try:
+        from groq import Groq
+        import pandas as pd
+        
+        payload = request.get_json() or {}
+        client_id = payload.get("client_id")
+        client_name = payload.get("client_name", "Unknown Client")
+        
+        if not client_id:
+            return jsonify({"error": "No client_id provided"}), 400
+            
+        # Load rich data from CSV
+        csv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "raw", "portfolios.csv")
+        try:
+            df = pd.read_csv(csv_path)
+            client_df = df[df["Client_ID"] == client_id]
+            if client_df.empty:
+                return jsonify({"error": "Client data not found in CSV"}), 404
+            
+            # Select relevant rich fields to send to the LLM
+            holdings = client_df[["Asset_Class", "Ticker", "Sector", "Invested_Amount", "Return_Pct", "Risk_Beta", "ESG_Score"]].to_dict(orient="records")
+        except Exception as e:
+            logging.error(f"Failed to read portfolio CSV: {e}")
+            return jsonify({"error": "Data access error"}), 500
+            
+        client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+        
+        # Build prompt
+        holdings_str = json.dumps(holdings, indent=2)
+        sys_prompt = (
+            "You are a Senior Fiduciary Wealth Advisor at Veritas Financial. "
+            "Analyze the client's rich portfolio data (including Sector, Invested Amount, Return %, Risk Beta, and ESG Score). "
+            "Provide exactly 3 bullet points of strategic advice regarding risk exposure, sector diversification, "
+            "and portfolio volatility/ESG considerations. "
+            "Do not include greetings or disclaimers, just the 3 bullet points formatted nicely in markdown."
+        )
+        user_prompt = f"Client: {client_name}\nHoldings:\n{holdings_str}\n\nPlease provide your expert analysis."
+        
+        model_name = os.getenv("GROQ_MODEL", "llama3-70b-8192")
+        if model_name.startswith("groq/"):
+            model_name = model_name[5:]
+            
+        completion = client.chat.completions.create(
+            model=model_name,
+            messages=[
+                {"role": "system", "content": sys_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.3,
+            max_tokens=300
+        )
+        
+        reply = completion.choices[0].message.content
+        return jsonify({"status": "success", "analysis": reply})
+        
+    except Exception as exc:
+        logging.exception("Failed to analyze portfolio")
+        return jsonify({"error": "Failed to analyze portfolio", "details": str(exc)}), 500
 
 
 def create_app():

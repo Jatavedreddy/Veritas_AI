@@ -91,11 +91,11 @@
               <span class="text-sm font-bold {% if score < -0.05 %}text-terracotta{% else %}text-mutedsage{% endif %}">{{ "%.4f" | format(score) }}</span>
             </td>
             <td class="px-6 py-4">
-              <div class="flex flex-wrap gap-1.5">
-                <span class="text-[10px] px-2 py-0.5 rounded-full border border-terracotta/20 bg-terracotta/5 text-terracotta font-semibold">{{ alert.get('source','unknown') | replace('_',' ') | title }}</span>
-                {% if txn.get('amount', 0) >= 100000 %}<span class="text-[10px] px-2 py-0.5 rounded-full border border-red-200 bg-red-50 text-red-700 font-semibold">Large Value</span>{% endif %}
-                {% if txn.get('region','') == 'High-Risk Jurisdiction' %}<span class="text-[10px] px-2 py-0.5 rounded-full border border-amber-200 bg-amber-50 text-amber-700 font-semibold">High-Risk Geo</span>{% endif %}
-                {% if meta.get('historical_avg_transaction',0) > 0 and txn.get('amount',0) > meta.get('historical_avg_transaction',0) * 10 %}<span class="text-[10px] px-2 py-0.5 rounded-full border border-purple-200 bg-purple-50 text-purple-700 font-semibold">Velocity Spike</span>{% endif %}
+              <div class="flex flex-wrap gap-2">
+                <span class="whitespace-nowrap text-[10px] px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold">{{ alert.get('source','unknown') | replace('_',' ') | title }}</span>
+                {% if txn.get('amount', 0) >= 100000 %}<span class="whitespace-nowrap text-[10px] px-2.5 py-1 rounded-full bg-red-50 text-red-700 font-semibold">Large Value</span>{% endif %}
+                {% if txn.get('region','') == 'High-Risk Jurisdiction' %}<span class="whitespace-nowrap text-[10px] px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 font-semibold">High-Risk Geo</span>{% endif %}
+                {% if meta.get('historical_avg_transaction',0) > 0 and txn.get('amount',0) > meta.get('historical_avg_transaction',0) * 10 %}<span class="whitespace-nowrap text-[10px] px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 font-semibold">Velocity Spike</span>{% endif %}
               </div>
             </td>
             <td class="px-6 py-4 text-center">
