@@ -1,14 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
-  <!-- Outer shield shape -->
-  <path d="M24 2L6 10v14c0 11.1 7.65 21.44 18 24 10.35-2.56 18-12.9 18-24V10L24 2z" fill="#D96B52" opacity="0.12"/>
-  <path d="M24 4.5L8 11.5v12c0 9.8 6.8 18.95 16 21.2 9.2-2.25 16-11.4 16-21.2v-12L24 4.5z" fill="none" stroke="#D96B52" stroke-width="1.5"/>
-  <!-- Inner V letterform / checkmark hybrid -->
-  <path d="M16 20l6 10 10-16" stroke="#D96B52" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-  <!-- Accent line at bottom of shield -->
-  <path d="M18 38c3.5 1.8 8.5 1.8 12 0" stroke="#D96B52" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
-  <!-- Small data dots -->
-  <circle cx="14" cy="30" r="1.2" fill="#4A6B82" opacity="0.5"/>
-  <circle cx="18" cy="33" r="1" fill="#4A6B82" opacity="0.4"/>
-  <circle cx="34" cy="30" r="1.2" fill="#4A6B82" opacity="0.5"/>
-  <circle cx="30" cy="33" r="1" fill="#4A6B82" opacity="0.4"/>
+  <!-- Stylized "V" letterform — bold, angular, premium serif feel -->
+  <!-- Main V strokes with slight taper for a refined serif look -->
+  <path d="M8 8L24 40L40 8" stroke="#D96B52" stroke-width="5" stroke-linecap="square" stroke-linejoin="miter" fill="none"/>
+  <!-- Left serif -->
+  <path d="M5 8H14" stroke="#D96B52" stroke-width="3" stroke-linecap="square"/>
+  <!-- Right serif -->
+  <path d="M34 8H43" stroke="#D96B52" stroke-width="3" stroke-linecap="square"/>
+  <!-- Subtle accent line under the V apex -->
+  <path d="M19 44H29" stroke="#D96B52" stroke-width="1.5" stroke-linecap="round" opacity="0.4"/>
 </svg>

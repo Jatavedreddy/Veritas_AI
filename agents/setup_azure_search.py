@@ -32,7 +32,9 @@ load_dotenv()
 # ─── Configuration ─────────────────────────────────────────────────────────────
 
 INDEX_NAME = "veritas-regulations"
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
+AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT", "")
+AZURE_OPENAI_KEY = os.getenv("AZURE_OPENAI_KEY", "")
+AZURE_OPENAI_EMBEDDING_DEPLOYMENT = os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-3-small")
 AZURE_SEARCH_ENDPOINT = os.getenv("AZURE_SEARCH_ENDPOINT", "")
 AZURE_SEARCH_KEY = os.getenv("AZURE_SEARCH_KEY", "")
 
@@ -510,26 +512,34 @@ def _step(msg: str) -> None:
 # ─── Step 1: Generate Embeddings ──────────────────────────────────────────────
 
 def generate_embeddings(documents: list[dict]) -> list[dict]:
-    """Generate vector embeddings for each document using sentence-transformers."""
+    """Generate vector embeddings for each document using Azure OpenAI."""
 
     _header("STEP 1 — Generating Embeddings")
 
     try:
-        from sentence_transformers import SentenceTransformer
+        from openai import AzureOpenAI
     except ImportError:
-        print("  ✘ sentence-transformers not installed.")
-        print("    Run: pip install sentence-transformers")
+        print("  ✘ openai not installed.")
+        print("    Run: pip install openai")
         sys.exit(1)
 
-    _step(f"Loading model: {EMBEDDING_MODEL}")
-    model = SentenceTransformer(EMBEDDING_MODEL)
-    embedding_dim = model.get_sentence_embedding_dimension()
-    _step(f"Embedding dimensions: {embedding_dim}")
+    if not AZURE_OPENAI_ENDPOINT or not AZURE_OPENAI_KEY:
+        print("  ⚠ Azure OpenAI credentials not configured.")
+        print("    Set AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_KEY in .env")
+        sys.exit(1)
+
+    _step(f"Connecting Azure OpenAI at: {AZURE_OPENAI_ENDPOINT}")
+    client = AzureOpenAI(
+        api_key=AZURE_OPENAI_KEY,
+        api_version="2023-05-15",
+        azure_endpoint=AZURE_OPENAI_ENDPOINT
+    )
 
     for doc in documents:
         # Combine title + content for richer embeddings
         text = f"{doc['title']}. {doc['content']}"
-        embedding = model.encode(text).tolist()
+        response = client.embeddings.create(input=text, model=AZURE_OPENAI_EMBEDDING_DEPLOYMENT)
+        embedding = response.data[0].embedding
         doc["contentVector"] = embedding
         _step(f"Embedded: {doc['title'][:50]}… ({len(embedding)} dims)")
 

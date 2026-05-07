@@ -7,6 +7,7 @@ venv/
 __pycache__/
 *.pyc
 *.pyo
+*.pytest_cache/
 
 # IDE
 .vscode/
@@ -44,3 +45,6 @@ run.md
 later.md
 conversation_story.md
 veritas_powerbi_theme.json
+documentation.md    
+project_deep_dive.md
+/docs/

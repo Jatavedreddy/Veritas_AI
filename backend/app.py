@@ -42,12 +42,20 @@ MODEL_DIR = PROJECT_ROOT / "ml" / "models"
 LOCAL_REGULATORY_DOCS = PROJECT_ROOT / "data" / "processed" / "regulatory_embeddings.json"
 
 INDEX_NAME = os.getenv("AZURE_SEARCH_INDEX", "veritas-regulations")
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
+AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT", "")
+AZURE_OPENAI_KEY = os.getenv("AZURE_OPENAI_KEY", "")
+AZURE_OPENAI_EMBEDDING_DEPLOYMENT = os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-3-small")
 AZURE_SEARCH_ENDPOINT = os.getenv("AZURE_SEARCH_ENDPOINT", "")
 AZURE_SEARCH_KEY = os.getenv("AZURE_SEARCH_KEY", "")
 
 CATEGORICAL_FEATURES = ["transaction_type", "currency", "region"]
 TEMPORAL_FEATURES = ["hour", "day_of_week", "is_weekend", "is_night"]
+
+# Regions matching the training pipeline's HIGH_RISK_REGIONS list
+DEFAULT_HIGH_RISK_REGIONS = [
+    "Bermuda", "British Virgin Islands", "Cayman Islands", "Crimea",
+    "Iran", "Isle of Man", "North Korea", "Panama", "Syria",
+]
 
 api_v1 = Blueprint("api_v1", __name__, url_prefix="/api/v1")
 _model_cache: dict[str, Any] = {}
@@ -86,22 +94,12 @@ DEFAULT_SETTINGS = {
         "platform_name": "Veritas Financial Advisory",
         "timezone": "UTC (Coordinated Universal Time)",
         "default_currency": "USD — US Dollar",
-        "alert_threshold_usd": 10000,
+        "alert_amount_threshold": 0,
     },
     "ml_engine": {
-        "contamination_rate": 0.05,
-        "retraining_frequency": "Every 7 days",
-        "feature_weights": {
-            "transaction_amount": 0.8,
-            "region_risk_score": 0.6,
-            "historical_deviation": 0.7,
-        },
-    },
-    "agents": {
-        "compliance": True,
-        "quant": True,
-        "cro": True,
-        "llm_provider": "Groq — Compound Model (Default)",
+        "ensemble_rf_weight": 0.7,
+        "anomaly_threshold": 0.52,
+        "high_risk_regions": DEFAULT_HIGH_RISK_REGIONS,
     },
     "api_keys": {
         "groq_api_key": "gsk_xxxxxxxxxxxxxxxxxxxx",
@@ -150,26 +148,50 @@ def _load_model_artifacts():
         return _model_cache
 
     required_files = {
-        "model": MODEL_DIR / "isolation_forest.joblib",
+        "if_model": MODEL_DIR / "isolation_forest.joblib",
+        "rf_model": MODEL_DIR / "random_forest.joblib",
         "scaler": MODEL_DIR / "scaler.joblib",
         "feature_columns": MODEL_DIR / "encoder_columns.joblib",
         "feature_config": MODEL_DIR / "feature_config.joblib",
+        "threshold": MODEL_DIR / "threshold.joblib",
     }
 
-    missing = [str(path) for path in required_files.values() if not path.exists()]
+    # rf_model and threshold are optional (backward compat with IF-only artifacts)
+    optional = {"rf_model", "threshold"}
+    missing = [
+        str(path) for name, path in required_files.items()
+        if not path.exists() and name not in optional
+    ]
     if missing:
         raise FileNotFoundError(f"Missing model artifact(s): {missing}")
 
-    _model_cache.update(
-        {
-            name: joblib.load(path)
-            for name, path in required_files.items()
-        }
-    )
+    for name, path in required_files.items():
+        if path.exists():
+            _model_cache[name] = joblib.load(path)
+
+    # Backward compat: keep 'model' key pointing to IF for legacy callers
+    _model_cache["model"] = _model_cache["if_model"]
     return _model_cache
 
 
-def _prepare_feature_matrix(records):
+def _get_user_settings():
+    """Load the current user's settings from DB, merged with defaults."""
+    user_id = session.get("user_id")
+    if not user_id:
+        return DEFAULT_SETTINGS.copy()
+    try:
+        users = get_collections()["users"]
+        user = users.find_one({"_id": ObjectId(user_id)}, {"settings": 1})
+        return _merge_settings((user or {}).get("settings"))
+    except Exception:
+        return DEFAULT_SETTINGS.copy()
+
+
+def _prepare_feature_matrix(records, high_risk_regions=None):
+    """Mirror the training feature engineering pipeline from train_model.py."""
+    if high_risk_regions is None:
+        high_risk_regions = DEFAULT_HIGH_RISK_REGIONS
+
     df = pd.DataFrame(records).copy()
 
     if "amount" not in df.columns:
@@ -191,9 +213,14 @@ def _prepare_feature_matrix(records):
             df[column] = default
         df[column] = df[column].fillna(default).astype(str)
 
+    # Ensure from_account exists for velocity calculation
+    if "from_account" not in df.columns:
+        df["from_account"] = "unknown"
+
     ts = pd.to_datetime(df["timestamp"], errors="coerce", utc=True)
     ts = ts.fillna(pd.Timestamp(_utc_now()))
 
+    # ── Temporal features ─────────────────────────────────────────
     df = df.assign(
         hour=ts.dt.hour,
         day_of_week=ts.dt.dayofweek,
@@ -202,6 +229,38 @@ def _prepare_feature_matrix(records):
         amount_log=np.log1p(df["amount"]),
     )
 
+    # ── Statistical features ──────────────────────────────────────
+    amt_mean = df["amount"].mean()
+    amt_std = df["amount"].std() if len(df) > 1 else 1.0
+    df = df.assign(
+        amount_zscore=(df["amount"] - amt_mean) / max(amt_std, 1e-9),
+        amount_percentile=df["amount"].rank(pct=True),
+    )
+
+    # ── Structuring detection ─────────────────────────────────────
+    REPORTING_THRESHOLD = 10_000
+    df = df.assign(
+        amt_dist_to_threshold=np.abs(df["amount"] - REPORTING_THRESHOLD),
+        is_near_threshold=((df["amount"] >= 9_000) & (df["amount"] < REPORTING_THRESHOLD)).astype(int),
+    )
+
+    # ── High-value flag ───────────────────────────────────────────
+    df = df.assign(is_high_value=(df["amount"] >= 200_000).astype(int))
+
+    # ── Account velocity ──────────────────────────────────────────
+    acct_freq = df.groupby("from_account").size().rename("acct_txn_count")
+    df = df.merge(acct_freq, on="from_account", how="left")
+
+    # ── High-risk region flag ─────────────────────────────────────
+    df = df.assign(is_high_risk_region=df["region"].isin(high_risk_regions).astype(int))
+
+    # ── Interaction features ──────────────────────────────────────
+    df = df.assign(
+        risk_night_interaction=df["is_high_risk_region"] * df["is_night"],
+        risk_highval_interaction=df["is_high_risk_region"] * df["is_high_value"],
+    )
+
+    # ── One-hot encode ────────────────────────────────────────────
     encoded = pd.get_dummies(df, columns=CATEGORICAL_FEATURES, dtype=int)
     feature_columns = _load_model_artifacts()["feature_columns"]
     features = encoded.reindex(columns=feature_columns, fill_value=0)
@@ -210,7 +269,8 @@ def _prepare_feature_matrix(records):
     return scaled
 
 
-def _build_alert(record, prediction, anomaly_score):
+def _build_alert(record, anomaly_score, ensemble_score):
+    """Build an alert document for an anomalous transaction."""
     alert_transaction = {
         **record,
         "transaction_id": record.get("transaction_id") or str(uuid.uuid4()),
@@ -223,11 +283,12 @@ def _build_alert(record, prediction, anomaly_score):
     return {
         "transaction": alert_transaction,
         "transaction_id": alert_transaction["transaction_id"],
-        "prediction": int(prediction),
         "anomaly_score": float(anomaly_score),
+        "ensemble_score": float(ensemble_score),
+        "prediction": -1,
         "status": "open",
         "created_at": _utc_now(),
-        "source": "ml_isolation_forest",
+        "source": "ml_ensemble",
     }
 
 
@@ -396,9 +457,12 @@ def _get_embedding_model():
     global _embedding_model
 
     if _embedding_model is None:
-        from sentence_transformers import SentenceTransformer
-
-        _embedding_model = SentenceTransformer(EMBEDDING_MODEL)
+        from openai import AzureOpenAI
+        _embedding_model = AzureOpenAI(
+            api_key=AZURE_OPENAI_KEY,
+            api_version="2023-05-15",
+            azure_endpoint=AZURE_OPENAI_ENDPOINT
+        )
 
     return _embedding_model
 
@@ -408,7 +472,10 @@ def _search_azure_regulations(query: str):
     from azure.search.documents import SearchClient
     from azure.search.documents.models import VectorizedQuery
 
-    query_vector = _get_embedding_model().encode(query).tolist()
+    client = _get_embedding_model()
+    response = client.embeddings.create(input=query, model=AZURE_OPENAI_EMBEDDING_DEPLOYMENT)
+    query_vector = response.data[0].embedding
+    
     search_client = SearchClient(
         endpoint=AZURE_SEARCH_ENDPOINT,
         index_name=INDEX_NAME,
@@ -448,7 +515,10 @@ def _search_local_regulations(query: str):
     with LOCAL_REGULATORY_DOCS.open("r", encoding="utf-8") as handle:
         documents = json.load(handle)
 
-    query_vector = np.array(_get_embedding_model().encode(query))
+    client = _get_embedding_model()
+    response = client.embeddings.create(input=query, model=AZURE_OPENAI_EMBEDDING_DEPLOYMENT)
+    query_vector = np.array(response.data[0].embedding)
+    
     scored_docs = []
     for document in documents:
         doc_vector = np.array(document["contentVector"])
@@ -522,32 +592,71 @@ def predict_transactions():
 
         records = _normalize_records(payload)
         artifacts = _load_model_artifacts()
-        features = _prepare_feature_matrix(records)
 
-        model = artifacts["model"]
-        predictions = model.predict(features)
-        anomaly_scores = model.decision_function(features)
+        # Load user-configurable settings
+        settings = _get_user_settings()
+        ml_settings = settings.get("ml_engine", {})
+        rf_weight = ml_settings.get("ensemble_rf_weight", 0.7)
+        threshold = ml_settings.get("anomaly_threshold", 0.52)
+        high_risk_regions = ml_settings.get("high_risk_regions", DEFAULT_HIGH_RISK_REGIONS)
+        alert_amount_threshold = settings.get("general", {}).get("alert_amount_threshold", 0)
+
+        features = _prepare_feature_matrix(records, high_risk_regions)
+
+        if_model = artifacts["if_model"]
+        rf_model = artifacts.get("rf_model")
+
+        # IF scores (lower = more anomalous)
+        if_raw_scores = if_model.decision_function(features)
+        # Normalize IF scores to [0, 1] (inverted: higher = more anomalous)
+        if_min, if_max = if_raw_scores.min(), if_raw_scores.max()
+        if if_max - if_min > 0:
+            if_anomaly_scores = 1 - (if_raw_scores - if_min) / (if_max - if_min)
+        else:
+            if_anomaly_scores = np.zeros_like(if_raw_scores)
+
+        # Ensemble scoring
+        if rf_model is not None:
+            rf_probs = rf_model.predict_proba(features)[:, 1]
+            ensemble_scores = rf_weight * rf_probs + (1 - rf_weight) * if_anomaly_scores
+        else:
+            # Fallback: IF-only mode
+            ensemble_scores = if_anomaly_scores
 
         alerts_collection = get_collections()["alerts"]
         results = []
 
-        for record, prediction, anomaly_score in zip(records, predictions, anomaly_scores):
+        for i, record in enumerate(records):
             transaction_id = record.get("transaction_id") or str(uuid.uuid4())
+            score = float(ensemble_scores[i])
+            is_anomaly = score >= threshold
+            amount = float(record.get("amount", 0))
+
+            # Only create alerts above the amount threshold
+            if alert_amount_threshold > 0 and amount < alert_amount_threshold:
+                is_anomaly = False
+
             response = {
                 "transaction_id": transaction_id,
-                "prediction": int(prediction),
-                "anomaly_score": float(anomaly_score),
-                "is_anomaly": bool(prediction == -1),
+                "ensemble_score": round(score, 4),
+                "if_anomaly_score": round(float(if_anomaly_scores[i]), 4),
+                "rf_probability": round(float(rf_probs[i]), 4) if rf_model is not None else None,
+                "is_anomaly": is_anomaly,
+                "threshold": threshold,
             }
 
-            if prediction == -1:
-                alert = _build_alert({**record, "transaction_id": transaction_id}, prediction, anomaly_score)
+            if is_anomaly:
+                alert = _build_alert(
+                    {**record, "transaction_id": transaction_id},
+                    float(if_raw_scores[i]),
+                    score,
+                )
                 insert_result = alerts_collection.insert_one(alert)
                 response["alert_id"] = str(insert_result.inserted_id)
 
             results.append(response)
 
-        logging.info("Scored %s transaction(s)", len(results))
+        logging.info("Scored %s transaction(s) via ensemble", len(results))
         body = {"status": "success", "results": results}
         if len(results) == 1:
             body["result"] = results[0]
@@ -558,6 +667,64 @@ def predict_transactions():
     except Exception as exc:
         logging.exception("Failed to score transaction payload")
         return jsonify({"error": "Failed to score transactions", "details": str(exc)}), 500
+
+
+@api_v1.route("/model_info", methods=["GET"])
+def model_info():
+    """Return metadata about the currently loaded ML model artifacts."""
+    try:
+        artifacts = _load_model_artifacts()
+        config = artifacts.get("feature_config", {})
+        feature_cols = artifacts.get("feature_columns", [])
+        threshold = artifacts.get("threshold", "N/A")
+
+        # Model artifact file sizes
+        artifact_files = {}
+        for name in ["isolation_forest", "random_forest", "scaler", "encoder_columns", "threshold", "feature_config"]:
+            path = MODEL_DIR / f"{name}.joblib"
+            if path.exists():
+                artifact_files[name] = round(path.stat().st_size / 1024, 1)
+
+        # IF params
+        if_model = artifacts.get("if_model")
+        if_info = {}
+        if if_model is not None:
+            if_info = {
+                "n_estimators": if_model.n_estimators,
+                "contamination": float(if_model.contamination),
+                "max_samples": if_model.max_samples,
+                "max_features": if_model.max_features,
+            }
+
+        # RF params
+        rf_model = artifacts.get("rf_model")
+        rf_info = {}
+        if rf_model is not None:
+            rf_info = {
+                "n_estimators": rf_model.n_estimators,
+                "max_depth": rf_model.max_depth,
+                "n_features": rf_model.n_features_in_,
+                "class_weight": str(rf_model.class_weight),
+            }
+
+        return jsonify({
+            "status": "success",
+            "model_info": {
+                "feature_count": len(feature_cols),
+                "feature_names": feature_cols,
+                "trained_threshold": float(threshold) if isinstance(threshold, (int, float)) else threshold,
+                "isolation_forest": if_info,
+                "random_forest": rf_info,
+                "ensemble_available": rf_model is not None,
+                "high_risk_regions": config.get("high_risk_regions", DEFAULT_HIGH_RISK_REGIONS),
+                "ensemble_rf_weight": config.get("ensemble_rf_weight", 0.7),
+                "artifact_sizes_kb": artifact_files,
+            },
+        }), 200
+
+    except Exception as exc:
+        logging.exception("Failed to load model info")
+        return jsonify({"error": "Failed to load model info", "details": str(exc)}), 500
 
 
 @api_v1.route("/dashboard_live_data", methods=["GET"])

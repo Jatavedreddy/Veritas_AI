@@ -33,7 +33,7 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "groq/compound")
 AZURE_SEARCH_ENDPOINT = os.getenv("AZURE_SEARCH_ENDPOINT", "")
 AZURE_SEARCH_KEY = os.getenv("AZURE_SEARCH_KEY", "")
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
+AZURE_OPENAI_EMBEDDING_DEPLOYMENT = os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-3-small")
 INDEX_NAME = "veritas-regulations"
 
 # Local fallback path for regulatory embeddings (when Azure is unavailable)
@@ -136,14 +136,23 @@ def _build_regulatory_search_tool():
             """Vector search against Azure AI Search."""
 
             try:
-                from sentence_transformers import SentenceTransformer
+                from openai import AzureOpenAI
                 from azure.core.credentials import AzureKeyCredential
                 from azure.search.documents import SearchClient
                 from azure.search.documents.models import VectorizedQuery
 
+                AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT", "")
+                AZURE_OPENAI_KEY = os.getenv("AZURE_OPENAI_KEY", "")
+                AZURE_OPENAI_EMBEDDING_DEPLOYMENT = os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-3-small")
+
                 # Generate query embedding
-                model = SentenceTransformer(EMBEDDING_MODEL)
-                query_vector = model.encode(query).tolist()
+                client = AzureOpenAI(
+                    api_key=AZURE_OPENAI_KEY,
+                    api_version="2023-05-15",
+                    azure_endpoint=AZURE_OPENAI_ENDPOINT
+                )
+                response = client.embeddings.create(input=query, model=AZURE_OPENAI_EMBEDDING_DEPLOYMENT)
+                query_vector = response.data[0].embedding
 
                 # Execute vector search
                 search_client = SearchClient(
@@ -176,7 +185,11 @@ def _build_regulatory_search_tool():
 
             try:
                 import numpy as np
-                from sentence_transformers import SentenceTransformer
+                from openai import AzureOpenAI
+
+                AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT", "")
+                AZURE_OPENAI_KEY = os.getenv("AZURE_OPENAI_KEY", "")
+                AZURE_OPENAI_EMBEDDING_DEPLOYMENT = os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-3-small")
 
                 _step("Using local regulatory knowledge base (Azure not configured)")
 
@@ -192,8 +205,13 @@ def _build_regulatory_search_tool():
                     documents = json.load(f)
 
                 # Generate query embedding
-                model = SentenceTransformer(EMBEDDING_MODEL)
-                query_vector = np.array(model.encode(query))
+                client = AzureOpenAI(
+                    api_key=AZURE_OPENAI_KEY,
+                    api_version="2023-05-15",
+                    azure_endpoint=AZURE_OPENAI_ENDPOINT
+                )
+                response = client.embeddings.create(input=query, model=AZURE_OPENAI_EMBEDDING_DEPLOYMENT)
+                query_vector = np.array(response.data[0].embedding)
 
                 # Compute cosine similarity
                 scored_docs = []
@@ -475,7 +493,7 @@ def run_risk_committee(transaction_data: Optional[dict] = None) -> str:
         sys.exit(1)
 
     _step(f"Groq model: {GROQ_MODEL}")
-    _step(f"Embedding model: {EMBEDDING_MODEL}")
+    _step(f"Embedding deployment: {AZURE_OPENAI_EMBEDDING_DEPLOYMENT}")
     _step(f"Azure Search: {'configured' if AZURE_SEARCH_ENDPOINT else 'local fallback'}")
 
     # ── Initialize LLM ────────────────────────────────────────────────

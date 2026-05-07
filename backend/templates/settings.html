@@ -2,7 +2,7 @@
 
 {% block title %}Settings{% endblock %}
 {% block page_title %}Platform Settings{% endblock %}
-{% block page_subtitle %}Configure ML engines, agent behavior, API integrations, and general preferences.{% endblock %}
+{% block page_subtitle %}Configure ML ensemble behavior, detection thresholds, high-risk regions, and API integrations.{% endblock %}
 
 {% block head_extra %}
 <style>
@@ -12,20 +12,17 @@
   .tab-btn.active::after { content: ''; position: absolute; bottom: 0; left: 0.75rem; right: 0.75rem; height: 2px; background: #D96B52; border-radius: 1px; }
   .tab-panel { display: none; }
   .tab-panel.active { display: block; }
-
-  /* Toggle switch */
-  .toggle-track { width: 2.75rem; height: 1.5rem; border-radius: 9999px; background: #d1d5db; position: relative; cursor: pointer; transition: background 200ms; flex-shrink: 0; }
-  .toggle-track.on { background: #D96B52; }
-  .toggle-knob { width: 1.125rem; height: 1.125rem; border-radius: 9999px; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.15); position: absolute; top: 50%; transform: translateY(-50%); left: 3px; transition: left 200ms; }
-  .toggle-track.on .toggle-knob { left: calc(100% - 1.125rem - 3px); }
-
-  /* Range slider */
   input[type=range] { -webkit-appearance: none; width: 100%; height: 6px; border-radius: 3px; background: #e5e7eb; outline: none; }
   input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #D96B52; cursor: pointer; box-shadow: 0 2px 6px rgba(217,107,82,0.3); }
 
-  /* Toast */
   .toast { position: fixed; bottom: 2rem; right: 2rem; z-index: 100; transform: translateY(120%); opacity: 0; transition: all 400ms cubic-bezier(0.16,1,0.3,1); }
   .toast.show { transform: translateY(0); opacity: 1; }
+  .model-stat { display: flex; flex-direction: column; align-items: center; padding: 1rem; background: white; border-radius: 0.75rem; border: 1px solid #f3f4f6; }
+  .model-stat .stat-value { font-family: 'Playfair Display', serif; font-size: 1.5rem; font-weight: 700; color: #1E1E1E; }
+  .model-stat .stat-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; color: #9ca3af; margin-top: 0.25rem; }
+  .region-tag { display: inline-flex; align-items: center; gap: 0.375rem; font-size: 0.75rem; font-weight: 500; padding: 0.375rem 0.75rem; border-radius: 0.5rem; background: rgba(217,107,82,0.08); color: #D96B52; border: 1px solid rgba(217,107,82,0.15); }
+  .region-tag .remove-btn { cursor: pointer; opacity: 0.5; transition: opacity 150ms; }
+  .region-tag .remove-btn:hover { opacity: 1; }
 </style>
 {% endblock %}
 
@@ -35,14 +32,77 @@
 <!-- TAB NAVIGATION -->
 <div class="bg-white rounded-2xl border border-gray-100 shadow-card mb-6 overflow-hidden">
   <div class="flex items-center border-b border-gray-100 px-2">
-    <button class="tab-btn active" data-tab="general">General</button>
-    <button class="tab-btn" data-tab="ml-engine">ML Engine</button>
-    <button class="tab-btn" data-tab="agents">Agents</button>
+    <button class="tab-btn active" data-tab="ml-engine">ML Engine</button>
+    <button class="tab-btn" data-tab="general">General</button>
     <button class="tab-btn" data-tab="api-keys">API Keys</button>
   </div>
 
+  <!-- ── ML ENGINE ──────────────────────────────────────── -->
+  <div id="panel-ml-engine" class="tab-panel active p-6 space-y-8">
+    <div class="flex items-center justify-between">
+      <h3 class="text-headline text-obsidian">Ensemble Model Configuration</h3>
+      <span id="model-status-badge" class="text-[10px] px-2.5 py-1 rounded-full bg-gray-100 text-gray-400 font-semibold">Loading…</span>
+    </div>
+
+    <!-- Model Info Cards (read-only, loaded from /api/v1/model_info) -->
+    <div id="model-info-grid" class="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div class="model-stat"><span class="stat-value" id="mi-features">—</span><span class="stat-label">Features</span></div>
+      <div class="model-stat"><span class="stat-value" id="mi-if-trees">—</span><span class="stat-label">IF Trees</span></div>
+      <div class="model-stat"><span class="stat-value" id="mi-rf-trees">—</span><span class="stat-label">RF Trees</span></div>
+      <div class="model-stat"><span class="stat-value" id="mi-trained-thr">—</span><span class="stat-label">Trained Threshold</span></div>
+    </div>
+
+    <!-- Ensemble RF Weight -->
+    <div class="bg-offwhite rounded-xl p-5 border border-gray-100">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <p class="text-sm font-semibold text-obsidian">Ensemble RF Weight</p>
+          <p class="text-xs text-gray-400 mt-0.5">Balance between supervised RF and unsupervised IF. Higher → more trust in labeled patterns.</p>
+        </div>
+        <span id="rf-weight-value" class="text-lg font-serif font-bold text-terracotta">0.70</span>
+      </div>
+      <input id="rf-weight-slider" type="range" min="0" max="1" step="0.05" value="0.70" class="w-full"/>
+      <div class="flex justify-between text-[10px] text-gray-400 mt-1.5">
+        <span>0.0 (IF Only)</span>
+        <span>0.5 (Equal)</span>
+        <span>1.0 (RF Only)</span>
+      </div>
+    </div>
+
+    <!-- Anomaly Threshold -->
+    <div class="bg-offwhite rounded-xl p-5 border border-gray-100">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <p class="text-sm font-semibold text-obsidian">Anomaly Detection Threshold</p>
+          <p class="text-xs text-gray-400 mt-0.5">Ensemble score cutoff. Lower → more sensitive (higher recall, more false positives).</p>
+        </div>
+        <span id="threshold-value" class="text-lg font-serif font-bold text-terracotta">0.52</span>
+      </div>
+      <input id="threshold-slider" type="range" min="0.05" max="0.95" step="0.01" value="0.52" class="w-full"/>
+      <div class="flex justify-between text-[10px] text-gray-400 mt-1.5">
+        <span>0.05 (Very Sensitive)</span>
+        <span>0.50 (Balanced)</span>
+        <span>0.95 (Conservative)</span>
+      </div>
+    </div>
+
+    <!-- High-Risk Regions -->
+    <div class="bg-offwhite rounded-xl p-5 border border-gray-100">
+      <p class="text-sm font-semibold text-obsidian mb-1">High-Risk Regions</p>
+      <p class="text-xs text-gray-400 mb-4">Transactions from these regions get the <code class="text-[11px] bg-gray-200 px-1 rounded">is_high_risk_region</code> flag and related interaction features.</p>
+      <div id="regions-container" class="flex flex-wrap gap-2 mb-4"></div>
+      <div class="flex items-center gap-2">
+        <input id="new-region-input" type="text" placeholder="Add region…" class="flex-1 bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-obsidian focus:outline-none focus:ring-2 focus:ring-slateblue/30"/>
+        <button id="btn-add-region" type="button" class="flex items-center gap-1.5 bg-obsidian text-white text-xs font-semibold px-4 py-2.5 rounded-xl hover:bg-obsidian-light transition-colors">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+          Add
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- ── GENERAL ────────────────────────────────────────── -->
-  <div id="panel-general" class="tab-panel active p-6 space-y-6">
+  <div id="panel-general" class="tab-panel p-6 space-y-6">
     <h3 class="text-headline text-obsidian">General Settings</h3>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
       <div>
@@ -67,117 +127,17 @@
         </select>
       </div>
       <div>
-        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Alert Threshold (USD)</label>
-        <input id="alert-threshold" type="number" value="10000" class="w-full bg-offwhite border border-gray-200 rounded-xl px-4 py-3 text-sm text-obsidian focus:outline-none focus:ring-2 focus:ring-slateblue/30"/>
+        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Alert Amount Threshold (USD)</label>
+        <input id="alert-amount-threshold" type="number" value="0" class="w-full bg-offwhite border border-gray-200 rounded-xl px-4 py-3 text-sm text-obsidian focus:outline-none focus:ring-2 focus:ring-slateblue/30"/>
+        <p class="text-[11px] text-gray-400 mt-1.5">Only create alerts for anomalous transactions above this amount. Set to 0 to alert on all anomalies.</p>
       </div>
     </div>
   </div>
 
-  <!-- ── ML ENGINE ──────────────────────────────────────── -->
-  <div id="panel-ml-engine" class="tab-panel p-6 space-y-8">
-    <h3 class="text-headline text-obsidian">ML Engine Configuration</h3>
-
-    <!-- Contamination Rate -->
-    <div class="bg-offwhite rounded-xl p-5 border border-gray-100">
-      <div class="flex items-center justify-between mb-4">
-        <div>
-          <p class="text-sm font-semibold text-obsidian">Isolation Forest Contamination Rate</p>
-          <p class="text-xs text-gray-400 mt-0.5">Controls sensitivity — higher values flag more transactions as anomalous.</p>
-        </div>
-        <span id="contamination-value" class="text-lg font-serif font-bold text-terracotta">0.05</span>
-      </div>
-      <input id="contamination-slider" type="range" min="0.01" max="0.20" step="0.01" value="0.05" class="w-full"/>
-      <div class="flex justify-between text-[10px] text-gray-400 mt-1.5">
-        <span>0.01 (Conservative)</span>
-        <span>0.10 (Balanced)</span>
-        <span>0.20 (Aggressive)</span>
-      </div>
-    </div>
-
-    <!-- Retraining Frequency -->
-    <div class="bg-offwhite rounded-xl p-5 border border-gray-100">
-      <p class="text-sm font-semibold text-obsidian mb-1">Retraining Frequency</p>
-      <p class="text-xs text-gray-400 mb-3">How often the Isolation Forest model is retrained with new transaction data.</p>
-      <select id="retraining-frequency" class="bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-obsidian w-full md:w-64 focus:outline-none focus:ring-2 focus:ring-slateblue/30">
-        <option>Every 24 hours</option>
-        <option selected>Every 7 days</option>
-        <option>Every 30 days</option>
-        <option>Manual Only</option>
-      </select>
-    </div>
-
-    <!-- Feature Weights -->
-    <div class="bg-offwhite rounded-xl p-5 border border-gray-100">
-      <p class="text-sm font-semibold text-obsidian mb-1">Feature Weights</p>
-      <p class="text-xs text-gray-400 mb-4">Adjust the relative importance of each feature in the anomaly detection model.</p>
-      <div class="space-y-3">
-        <div class="flex items-center gap-4"><span class="text-xs text-gray-600 w-40">Transaction Amount</span><input id="weight-transaction-amount" type="range" min="0" max="1" step="0.1" value="0.8" class="flex-1 feature-weight-slider"/><span id="weight-transaction-amount-value" class="text-xs font-bold text-obsidian w-8">0.8</span></div>
-        <div class="flex items-center gap-4"><span class="text-xs text-gray-600 w-40">Region Risk Score</span><input id="weight-region-risk-score" type="range" min="0" max="1" step="0.1" value="0.6" class="flex-1 feature-weight-slider"/><span id="weight-region-risk-score-value" class="text-xs font-bold text-obsidian w-8">0.6</span></div>
-        <div class="flex items-center gap-4"><span class="text-xs text-gray-600 w-40">Historical Deviation</span><input id="weight-historical-deviation" type="range" min="0" max="1" step="0.1" value="0.7" class="flex-1 feature-weight-slider"/><span id="weight-historical-deviation-value" class="text-xs font-bold text-obsidian w-8">0.7</span></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── AGENTS ─────────────────────────────────────────── -->
-  <div id="panel-agents" class="tab-panel p-6 space-y-6">
-    <h3 class="text-headline text-obsidian">Virtual Risk Committee — Agent Configuration</h3>
-    <p class="text-sm text-gray-500 -mt-3">Enable or disable individual AI agents in the multi-agent risk committee pipeline.</p>
-
-    <div class="space-y-4">
-      <!-- Compliance Auditor -->
-      <div class="bg-offwhite rounded-xl p-5 border border-gray-100 flex items-center justify-between">
-        <div class="flex items-center gap-4">
-          <div class="w-10 h-10 rounded-xl bg-slateblue/10 flex items-center justify-center text-slateblue font-serif font-bold text-sm">CA</div>
-          <div>
-            <p class="text-sm font-semibold text-obsidian">Compliance Auditor</p>
-            <p class="text-xs text-gray-400">Scans regulatory knowledge base via RAG for applicable violations.</p>
-          </div>
-        </div>
-        <div class="toggle-track on" data-agent="compliance"><div class="toggle-knob"></div></div>
-      </div>
-
-      <!-- Quantitative Analyst -->
-      <div class="bg-offwhite rounded-xl p-5 border border-gray-100 flex items-center justify-between">
-        <div class="flex items-center gap-4">
-          <div class="w-10 h-10 rounded-xl bg-terracotta/10 flex items-center justify-center text-terracotta font-serif font-bold text-sm">QA</div>
-          <div>
-            <p class="text-sm font-semibold text-obsidian">Quantitative Analyst</p>
-            <p class="text-xs text-gray-400">Scores portfolio exposure and quantifies financial risk vectors.</p>
-          </div>
-        </div>
-        <div class="toggle-track on" data-agent="quant"><div class="toggle-knob"></div></div>
-      </div>
-
-      <!-- Chief Risk Officer -->
-      <div class="bg-offwhite rounded-xl p-5 border border-gray-100 flex items-center justify-between">
-        <div class="flex items-center gap-4">
-          <div class="w-10 h-10 rounded-xl bg-amethyst/10 flex items-center justify-center text-amethyst font-serif font-bold text-sm">CR</div>
-          <div>
-            <p class="text-sm font-semibold text-obsidian">Chief Risk Officer (CRO)</p>
-            <p class="text-xs text-gray-400">Synthesizes all findings into an executive brief and SAR draft.</p>
-          </div>
-        </div>
-        <div class="toggle-track on" data-agent="cro"><div class="toggle-knob"></div></div>
-      </div>
-    </div>
-
-    <!-- LLM Provider -->
-    <div class="bg-offwhite rounded-xl p-5 border border-gray-100">
-      <p class="text-sm font-semibold text-obsidian mb-1">LLM Provider</p>
-      <p class="text-xs text-amethyst-dark/60 mb-3">Select the language model backend for agent inference.</p>
-      <select id="llm-provider" class="bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-obsidian w-full md:w-72 focus:outline-none focus:ring-2 focus:ring-slateblue/30">
-        <option selected>Groq — Compound Model (Default)</option>
-        <option>OpenAI — GPT-4o</option>
-        <option>Anthropic — Claude Sonnet</option>
-        <option>Azure OpenAI — GPT-4</option>
-      </select>
-    </div>
-  </div>
 
   <!-- ── API KEYS ───────────────────────────────────────── -->
   <div id="panel-api-keys" class="tab-panel p-6 space-y-6">
     <h3 class="text-headline text-obsidian">API Keys & Integrations</h3>
-
     <div class="space-y-4">
       <div class="bg-offwhite rounded-xl p-5 border border-gray-100">
         <div class="flex items-center justify-between mb-2">
@@ -186,7 +146,6 @@
         </div>
         <input id="groq-api-key" type="password" value="gsk_xxxxxxxxxxxxxxxxxxxx" class="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm font-mono text-gray-500 focus:outline-none focus:ring-2 focus:ring-slateblue/30"/>
       </div>
-
       <div class="bg-offwhite rounded-xl p-5 border border-gray-100">
         <div class="flex items-center justify-between mb-2">
           <p class="text-sm font-semibold text-obsidian">Azure AI Search Endpoint</p>
@@ -194,7 +153,6 @@
         </div>
         <input id="azure-search-endpoint" type="text" value="https://veritas-search-*.search.windows.net" class="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm font-mono text-gray-500 focus:outline-none focus:ring-2 focus:ring-slateblue/30"/>
       </div>
-
       <div class="bg-offwhite rounded-xl p-5 border border-gray-100">
         <div class="flex items-center justify-between mb-2">
           <p class="text-sm font-semibold text-obsidian">MongoDB Connection</p>
@@ -215,11 +173,11 @@
   </button>
 </div>
 
-<!-- TOAST NOTIFICATION -->
+<!-- TOAST -->
 <div id="toast" class="toast">
   <div class="flex items-center gap-3 bg-emerald-600 text-white px-5 py-3.5 rounded-xl shadow-xl">
     <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
-    <span class="text-sm font-semibold">Settings Updated Successfully</span>
+    <span id="toast-msg" class="text-sm font-semibold">Settings Updated Successfully</span>
   </div>
 </div>
 
@@ -239,78 +197,99 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('panel-' + t.dataset.tab).classList.add('active');
   }));
 
-  const slider = document.getElementById('contamination-slider');
-  const label = document.getElementById('contamination-value');
-  const featureWeightIds = ['transaction-amount', 'region-risk-score', 'historical-deviation'];
-  const formEls = {
-    platformName: document.getElementById('platform-name'),
-    timezone: document.getElementById('timezone'),
-    defaultCurrency: document.getElementById('default-currency'),
-    alertThreshold: document.getElementById('alert-threshold'),
-    retrainingFrequency: document.getElementById('retraining-frequency'),
-    llmProvider: document.getElementById('llm-provider'),
-    groqApiKey: document.getElementById('groq-api-key'),
-    azureSearchEndpoint: document.getElementById('azure-search-endpoint'),
-    mongodbConnection: document.getElementById('mongodb-connection')
-  };
+  // ── Elements ──
+  const rfWeightSlider = document.getElementById('rf-weight-slider');
+  const rfWeightLabel = document.getElementById('rf-weight-value');
+  const thrSlider = document.getElementById('threshold-slider');
+  const thrLabel = document.getElementById('threshold-value');
+  const regionsContainer = document.getElementById('regions-container');
+  const newRegionInput = document.getElementById('new-region-input');
+  const btnAddRegion = document.getElementById('btn-add-region');
 
-  function setToggleState(track, enabled) {
-    track.classList.toggle('on', Boolean(enabled));
-  }
+  let currentRegions = [];
 
+  // ── Slider live updates ──
+  rfWeightSlider.addEventListener('input', () => rfWeightLabel.textContent = Number(rfWeightSlider.value).toFixed(2));
+  thrSlider.addEventListener('input', () => thrLabel.textContent = Number(thrSlider.value).toFixed(2));
+
+  // ── Toggle switches ──
   document.querySelectorAll('.toggle-track').forEach(track => {
     track.addEventListener('click', () => track.classList.toggle('on'));
   });
 
-  // ── Contamination slider real-time update ──
-  if (slider && label) {
-    slider.addEventListener('input', () => label.textContent = parseFloat(slider.value).toFixed(2));
+  // ── Regions management ──
+  function renderRegions() {
+    regionsContainer.innerHTML = currentRegions.map((r, i) =>
+      `<span class="region-tag">${r}<span class="remove-btn" data-idx="${i}">✕</span></span>`
+    ).join('');
+    regionsContainer.querySelectorAll('.remove-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        currentRegions.splice(Number(btn.dataset.idx), 1);
+        renderRegions();
+      });
+    });
   }
 
-  featureWeightIds.forEach((id) => {
-    const input = document.getElementById(`weight-${id}`);
-    const value = document.getElementById(`weight-${id}-value`);
-    if (!input || !value) return;
-    input.addEventListener('input', () => {
-      value.textContent = Number(input.value).toFixed(1);
-    });
+  btnAddRegion.addEventListener('click', () => {
+    const val = newRegionInput.value.trim();
+    if (val && !currentRegions.includes(val)) {
+      currentRegions.push(val);
+      renderRegions();
+      newRegionInput.value = '';
+    }
   });
+  newRegionInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); btnAddRegion.click(); } });
 
-  function applySettings(settings) {
-    const general = settings.general || {};
-    const mlEngine = settings.ml_engine || {};
-    const featureWeights = mlEngine.feature_weights || {};
-    const agents = settings.agents || {};
-    const apiKeys = settings.api_keys || {};
+  // ── Load model info (read-only cards) ──
+  async function loadModelInfo() {
+    try {
+      const res = await fetch('/api/v1/model_info');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      const mi = data.model_info || {};
+      document.getElementById('mi-features').textContent = mi.feature_count ?? '—';
+      document.getElementById('mi-if-trees').textContent = mi.isolation_forest?.n_estimators ?? '—';
+      document.getElementById('mi-rf-trees').textContent = mi.random_forest?.n_estimators ?? '—';
+      document.getElementById('mi-trained-thr').textContent = mi.trained_threshold != null ? Number(mi.trained_threshold).toFixed(2) : '—';
+      const badge = document.getElementById('model-status-badge');
+      badge.textContent = mi.ensemble_available ? 'Ensemble Active' : 'IF Only';
+      badge.className = 'text-[10px] px-2.5 py-1 rounded-full font-semibold ' +
+        (mi.ensemble_available ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700');
+    } catch (e) { console.error('Model info load failed:', e); }
+  }
 
-    formEls.platformName.value = general.platform_name || '';
-    formEls.timezone.value = general.timezone || formEls.timezone.value;
-    formEls.defaultCurrency.value = general.default_currency || formEls.defaultCurrency.value;
-    formEls.alertThreshold.value = general.alert_threshold_usd ?? 10000;
-    slider.value = mlEngine.contamination_rate ?? 0.05;
-    label.textContent = Number(slider.value).toFixed(2);
-    formEls.retrainingFrequency.value = mlEngine.retraining_frequency || formEls.retrainingFrequency.value;
-    formEls.llmProvider.value = agents.llm_provider || formEls.llmProvider.value;
-    formEls.groqApiKey.value = apiKeys.groq_api_key || '';
-    formEls.azureSearchEndpoint.value = apiKeys.azure_ai_search_endpoint || '';
-    formEls.mongodbConnection.value = apiKeys.mongodb_connection || '';
+  // ── Apply / collect settings ──
+  const formEls = {
+    platformName: document.getElementById('platform-name'),
+    timezone: document.getElementById('timezone'),
+    defaultCurrency: document.getElementById('default-currency'),
+    alertAmountThreshold: document.getElementById('alert-amount-threshold'),
+    llmProvider: document.getElementById('llm-provider'),
+    groqApiKey: document.getElementById('groq-api-key'),
+    azureSearchEndpoint: document.getElementById('azure-search-endpoint'),
+    mongodbConnection: document.getElementById('mongodb-connection'),
+  };
 
-    const weightMap = {
-      'transaction-amount': featureWeights.transaction_amount,
-      'region-risk-score': featureWeights.region_risk_score,
-      'historical-deviation': featureWeights.historical_deviation
-    };
-    Object.entries(weightMap).forEach(([id, val]) => {
-      const input = document.getElementById(`weight-${id}`);
-      const value = document.getElementById(`weight-${id}-value`);
-      if (!input || !value || val === undefined) return;
-      input.value = val;
-      value.textContent = Number(val).toFixed(1);
-    });
+  function applySettings(s) {
+    const g = s.general || {};
+    const ml = s.ml_engine || {};
+    const api = s.api_keys || {};
 
-    document.querySelectorAll('.toggle-track').forEach(track => {
-      setToggleState(track, agents[track.dataset.agent] !== false);
-    });
+    formEls.platformName.value = g.platform_name || '';
+    formEls.timezone.value = g.timezone || formEls.timezone.value;
+    formEls.defaultCurrency.value = g.default_currency || formEls.defaultCurrency.value;
+    formEls.alertAmountThreshold.value = g.alert_amount_threshold ?? 0;
+
+    rfWeightSlider.value = ml.ensemble_rf_weight ?? 0.7;
+    rfWeightLabel.textContent = Number(rfWeightSlider.value).toFixed(2);
+    thrSlider.value = ml.anomaly_threshold ?? 0.52;
+    thrLabel.textContent = Number(thrSlider.value).toFixed(2);
+    currentRegions = ml.high_risk_regions || [];
+    renderRegions();
+
+    formEls.groqApiKey.value = api.groq_api_key || '';
+    formEls.azureSearchEndpoint.value = api.azure_ai_search_endpoint || '';
+    formEls.mongodbConnection.value = api.mongodb_connection || '';
   }
 
   function collectSettings() {
@@ -319,31 +298,22 @@ document.addEventListener('DOMContentLoaded', () => {
         platform_name: formEls.platformName.value.trim(),
         timezone: formEls.timezone.value,
         default_currency: formEls.defaultCurrency.value,
-        alert_threshold_usd: Number(formEls.alertThreshold.value || 0)
+        alert_amount_threshold: Number(formEls.alertAmountThreshold.value || 0),
       },
       ml_engine: {
-        contamination_rate: Number(slider.value),
-        retraining_frequency: formEls.retrainingFrequency.value,
-        feature_weights: {
-          transaction_amount: Number(document.getElementById('weight-transaction-amount').value),
-          region_risk_score: Number(document.getElementById('weight-region-risk-score').value),
-          historical_deviation: Number(document.getElementById('weight-historical-deviation').value)
-        }
-      },
-      agents: {
-        compliance: document.querySelector('.toggle-track[data-agent="compliance"]').classList.contains('on'),
-        quant: document.querySelector('.toggle-track[data-agent="quant"]').classList.contains('on'),
-        cro: document.querySelector('.toggle-track[data-agent="cro"]').classList.contains('on'),
-        llm_provider: formEls.llmProvider.value
+        ensemble_rf_weight: Number(rfWeightSlider.value),
+        anomaly_threshold: Number(thrSlider.value),
+        high_risk_regions: [...currentRegions],
       },
       api_keys: {
         groq_api_key: formEls.groqApiKey.value,
         azure_ai_search_endpoint: formEls.azureSearchEndpoint.value,
-        mongodb_connection: formEls.mongodbConnection.value
-      }
+        mongodb_connection: formEls.mongodbConnection.value,
+      },
     };
   }
 
+  // ── Load ──
   async function loadSettings() {
     const res = await fetch('/api/v1/settings', { headers: { 'Accept': 'application/json' } });
     const data = await res.json();
@@ -351,10 +321,9 @@ document.addEventListener('DOMContentLoaded', () => {
     applySettings(data.settings || {});
   }
 
-  // ── Save button → toast & LocalStorage ──
+  // ── Save ──
   const saveBtn = document.getElementById('btn-save-config');
   const toast = document.getElementById('toast');
-  loadSettings().catch(console.error);
 
   saveBtn.addEventListener('click', async () => {
     saveBtn.disabled = true;
@@ -362,19 +331,20 @@ document.addEventListener('DOMContentLoaded', () => {
       const res = await fetch('/api/v1/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ settings: collectSettings() })
+        body: JSON.stringify({ settings: collectSettings() }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to save settings');
+      if (!res.ok) throw new Error(data.error || 'Failed to save');
       applySettings(data.settings || {});
+      document.getElementById('toast-msg').textContent = 'Settings saved — changes will apply to next prediction.';
       toast.classList.add('show');
-      setTimeout(() => toast.classList.remove('show'), 3000);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      saveBtn.disabled = false;
-    }
+      setTimeout(() => toast.classList.remove('show'), 3500);
+    } catch (err) { console.error(err); }
+    finally { saveBtn.disabled = false; }
   });
+
+  loadSettings().catch(console.error);
+  loadModelInfo();
 });
 </script>
 {% endblock %}
