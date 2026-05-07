@@ -2,28 +2,16 @@
 
 {% block title %}Dashboard{% endblock %}
 
-{% block page_title %}Risk &amp; Portfolio Overview{% endblock %}
-{% block page_subtitle %}Real-time overview of key risk metrics and flagged activity.{% endblock %}
+{% block page_title %}Live Risk Operations Dashboard{% endblock %}
+{% block page_subtitle %}Real-time monitoring of transaction anomalies, risk exposure, and active alerts.{% endblock %}
 
 {% block header_actions %}
-<!-- Date range selector -->
-<div class="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-4 py-2 text-sm text-obsidian shadow-card">
-  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-    <path stroke-linecap="round" stroke-linejoin="round"
-          d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
-  </svg>
-  <span id="dynamic-date-range" class="font-medium">May 12 – May 19, 2025</span>
-  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-    <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-  </svg>
-</div>
-
 <!-- Export button -->
 <button id="btn-export" class="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-4 py-2 text-sm font-medium text-obsidian shadow-card hover:shadow-card-hover hover:border-gray-300 transition-all duration-200">
   <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
     <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
   </svg>
-  Export
+  Export CSV
 </button>
 {% endblock %}
 
@@ -85,7 +73,7 @@
       {% endif %}
     </p>
     <!-- Subtle radial glow -->
-    <div class="absolute -right-8 -bottom-8 w-32 h-32 bg-terracotta/5 rounded-full blur-2xl pointer-events-none"></div>
+    <div class="absolute -right-8 -bottom-8 w-32 h-32 bg-deepnavy/10 rounded-full blur-2xl pointer-events-none"></div>
   </div>
 
   <!-- Card 3 — Active Alerts -->
@@ -93,8 +81,8 @@
        class="bg-white rounded-2xl border border-gray-100 shadow-card hover:shadow-card-hover
               transition-shadow duration-250 p-6">
     <div class="flex items-start justify-between mb-4">
-      <div class="w-11 h-11 rounded-xl bg-amber-500/10 flex items-center justify-center">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+      <div class="w-11 h-11 rounded-xl bg-amethyst/10 flex items-center justify-center">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-amethyst" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round"
                 d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
         </svg>
@@ -106,10 +94,10 @@
     </p>
     <div class="flex items-center gap-3 text-xs font-medium text-gray-500 mt-3">
       <span class="flex items-center gap-1">
-        <span class="w-2 h-2 rounded-full bg-red-500"></span> {{ metrics.open_alerts | default(0) }} Open
+        <span class="w-2 h-2 rounded-full bg-red-500"></span> <span id="metric-open-alerts">{{ metrics.open_alerts | default(0) }}</span> Open
       </span>
       <span class="flex items-center gap-1">
-        <span class="w-2 h-2 rounded-full bg-emerald-400"></span> {{ (metrics.total_alerts | default(0)) - (metrics.open_alerts | default(0)) }} Resolved
+        <span class="w-2 h-2 rounded-full bg-emerald-400"></span> <span id="metric-resolved-alerts">{{ (metrics.total_alerts | default(0)) - (metrics.open_alerts | default(0)) }}</span> Resolved
       </span>
     </div>
   </div>
@@ -164,7 +152,13 @@
 
     <!-- Table header -->
     <div class="flex items-center justify-between px-6 py-5 border-b border-gray-100">
-      <h2 class="text-headline text-obsidian">Recent Flagged Transactions</h2>
+      <div class="flex items-center gap-3">
+        <span class="relative flex h-3 w-3">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+        </span>
+        <h2 class="text-headline text-obsidian">Live Transactions</h2>
+      </div>
       <a href="/alerts" id="link-view-all-alerts"
          class="text-sm font-semibold text-terracotta hover:text-terracotta-dark flex items-center gap-1 transition-colors duration-200">
         View all
@@ -188,10 +182,10 @@
             <th class="text-center px-6 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Risk Status</th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-gray-50">
+        <tbody id="recent-transactions-body" class="divide-y divide-gray-50">
           {% if recent_transactions %}
           {% for txn in recent_transactions %}
-          <tr class="hover:bg-offwhite/60 transition-colors duration-150">
+          <tr class="hover:bg-offwhite/60 transition-colors duration-150" data-transaction-id="{{ txn.get('transaction_id', '') }}">
             <td class="px-6 py-4 font-mono text-xs font-medium">
               <a href="/investigate/{{ txn.get('transaction_id', '') }}"
                  class="text-slateblue hover:text-terracotta transition-colors duration-150 underline decoration-slateblue/30 hover:decoration-terracotta/50">
@@ -208,11 +202,14 @@
             <td class="px-6 py-4 text-center">
               {% set amt = txn.get('amount', 0) %}
               {% if amt >= 100000 %}
-              <span class="inline-block whitespace-nowrap px-3 py-1 rounded-full text-[11px] font-semibold bg-red-100 text-red-700">High Risk</span>
+              <span class="relative inline-flex h-3 w-3" title="High Risk">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+              </span>
               {% elif amt >= 10000 %}
-              <span class="inline-block whitespace-nowrap px-3 py-1 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-700">Medium</span>
+              <span class="inline-flex h-3 w-3 rounded-full bg-amber-400" title="Medium Risk"></span>
               {% else %}
-              <span class="inline-block whitespace-nowrap px-3 py-1 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-700">Low</span>
+              <span class="inline-flex h-3 w-3 rounded-full bg-emerald-400" title="Low Risk"></span>
               {% endif %}
             </td>
           </tr>
@@ -240,38 +237,197 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
+  const recentTransactionsBody = document.getElementById('recent-transactions-body');
+  const chartRangeSelect = document.getElementById('chart-range-select');
+  const numberFormatter = new Intl.NumberFormat('en-US');
+  const currencyFormatter = new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+  let lastRenderedTransactionIds = Array.from(
+    document.querySelectorAll('#recent-transactions-body tr[data-transaction-id]')
+  ).map((row) => row.dataset.transactionId).filter(Boolean);
+  let chartDataCache = { daily: { labels: [], risk_scores: [] }, weekly: { labels: [], risk_scores: [] }, monthly: { labels: [], risk_scores: [] } };
+  let riskChart = null;
 
-  // 1. Dynamic Date Range
-  const dateRangeEl = document.getElementById('dynamic-date-range');
-  if (dateRangeEl) {
-    const today = new Date();
-    const lastWeek = new Date(today);
-    lastWeek.setDate(today.getDate() - 7);
-    const options = { month: 'short', day: 'numeric', year: 'numeric' };
-    dateRangeEl.textContent = `${lastWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${today.toLocaleDateString('en-US', options)}`;
+  const fadeStyle = document.createElement('style');
+  fadeStyle.textContent = `
+    @keyframes premiumFadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .row-fade-in {
+      animation: premiumFadeIn 320ms ease-out;
+    }
+  `;
+  document.head.appendChild(fadeStyle);
+
+  function escapeHtml(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
-  // 2. Chart.js Risk Trend
+  function getRiskBadge(amount) {
+    if (amount >= 100000) {
+      return '<span class="relative inline-flex h-3 w-3" title="High Risk"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span></span>';
+    }
+    if (amount >= 10000) {
+      return '<span class="inline-flex h-3 w-3 rounded-full bg-amber-400" title="Medium Risk"></span>';
+    }
+    return '<span class="inline-flex h-3 w-3 rounded-full bg-emerald-400" title="Low Risk"></span>';
+  }
+
+  function renderRecentTransactionRow(txn, isNew) {
+    const amount = Number(txn.amount || 0);
+    const accountHolder = txn.account_metadata?.account_holder || 'Unknown';
+    const row = document.createElement('tr');
+    row.className = `hover:bg-offwhite/60 transition-colors duration-150${isNew ? ' row-fade-in' : ''}`;
+    row.dataset.transactionId = txn.transaction_id || '';
+    row.innerHTML = `
+      <td class="px-6 py-4 font-mono text-xs font-medium">
+        <a href="/investigate/${encodeURIComponent(txn.transaction_id || '')}"
+           class="text-slateblue hover:text-terracotta transition-colors duration-150 underline decoration-slateblue/30 hover:decoration-terracotta/50">
+          ${escapeHtml(txn.transaction_id || 'N/A')}
+        </a>
+      </td>
+      <td class="px-6 py-4 text-gray-600">${escapeHtml(txn.ingested_at || '')}</td>
+      <td class="px-6 py-4 font-medium text-obsidian">${escapeHtml(accountHolder)}</td>
+      <td class="px-6 py-4 text-right font-mono font-medium text-obsidian">${escapeHtml(currencyFormatter.format(amount))}</td>
+      <td class="px-6 py-4 text-gray-600">${escapeHtml(txn.region || '—')}</td>
+      <td class="px-6 py-4 text-gray-600">${escapeHtml(txn.transaction_type || '—')}</td>
+      <td class="px-6 py-4 text-center">${getRiskBadge(amount)}</td>
+    `;
+    return row;
+  }
+
+  function renderEmptyTransactionsState() {
+    if (!recentTransactionsBody) return;
+    recentTransactionsBody.innerHTML = `
+      <tr>
+        <td colspan="7" class="px-6 py-12 text-center text-gray-400">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 mx-auto mb-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
+          </svg>
+          No transactions found. Run the seed script to populate the database.
+        </td>
+      </tr>
+    `;
+  }
+
+  function updateRiskLevel(level) {
+    const container = document.querySelector('#card-risk-score p.text-xs.font-medium');
+    if (!container) return;
+
+    let badgeMarkup = '<span class="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-700">Low</span>';
+    if (level === 'High') {
+      badgeMarkup = '<span class="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-terracotta/15 text-terracotta-dark">High</span>';
+    } else if (level === 'Medium') {
+      badgeMarkup = '<span class="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-700">Medium</span>';
+    }
+
+    container.innerHTML = `Risk Level &nbsp; ${badgeMarkup}`;
+  }
+
+  function buildChartGradient(chart) {
+    const { ctx, chartArea } = chart;
+    if (!chartArea) return 'rgba(74, 107, 130, 0.2)';
+    const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+    gradient.addColorStop(0, 'rgba(74, 107, 130, 0.38)');
+    gradient.addColorStop(1, 'rgba(74, 107, 130, 0.02)');
+    return gradient;
+  }
+
+  function updateRiskChart(rangeKey) {
+    if (!riskChart || !chartDataCache[rangeKey]) return;
+    const series = chartDataCache[rangeKey];
+    riskChart.data.labels = series.labels || [];
+    riskChart.data.datasets[0].data = series.risk_scores || [];
+    riskChart.data.datasets[0].backgroundColor = buildChartGradient(riskChart);
+    riskChart.update();
+  }
+
+  function updateDashboard(metrics, transactions, chartData) {
+    const totalTransactionsEl = document.getElementById('metric-transactions');
+    const riskScoreEl = document.getElementById('metric-risk-score');
+    const totalAlertsEl = document.getElementById('metric-active-alerts');
+    const openAlertsEl = document.getElementById('metric-open-alerts');
+    const resolvedAlertsEl = document.getElementById('metric-resolved-alerts');
+
+    if (totalTransactionsEl) totalTransactionsEl.textContent = numberFormatter.format(metrics.total_transactions || 0);
+    if (riskScoreEl) riskScoreEl.textContent = metrics.risk_score || 0;
+    if (totalAlertsEl) totalAlertsEl.textContent = numberFormatter.format(metrics.total_alerts || 0);
+    if (openAlertsEl) openAlertsEl.textContent = numberFormatter.format(metrics.open_alerts || 0);
+    if (resolvedAlertsEl) {
+      const resolved = Math.max((metrics.total_alerts || 0) - (metrics.open_alerts || 0), 0);
+      resolvedAlertsEl.textContent = numberFormatter.format(resolved);
+    }
+    updateRiskLevel(metrics.risk_level || 'Low');
+
+    if (chartData && typeof chartData === 'object') {
+      chartDataCache = {
+        daily: chartData.daily || { labels: [], risk_scores: [] },
+        weekly: chartData.weekly || { labels: [], risk_scores: [] },
+        monthly: chartData.monthly || { labels: [], risk_scores: [] }
+      };
+      updateRiskChart(chartRangeSelect ? chartRangeSelect.value.toLowerCase() : 'daily');
+    }
+
+    if (!recentTransactionsBody) return;
+    if (!Array.isArray(transactions) || transactions.length === 0) {
+      lastRenderedTransactionIds = [];
+      renderEmptyTransactionsState();
+      return;
+    }
+
+    const nextTransactionIds = transactions.map((txn) => txn.transaction_id || '');
+    const newIds = new Set(nextTransactionIds.filter((id) => id && !lastRenderedTransactionIds.includes(id)));
+
+    recentTransactionsBody.innerHTML = '';
+    transactions.forEach((txn) => {
+      recentTransactionsBody.appendChild(renderRecentTransactionRow(txn, newIds.has(txn.transaction_id || '')));
+    });
+    lastRenderedTransactionIds = nextTransactionIds;
+  }
+
+  async function refreshDashboardLiveData() {
+    try {
+      const response = await fetch('/api/v1/dashboard_live_data', {
+        headers: { 'Accept': 'application/json' }
+      });
+      if (!response.ok) return;
+
+      const payload = await response.json();
+      updateDashboard(payload.metrics || {}, payload.recent_transactions || [], payload.chart_data || {});
+    } catch (error) {
+      console.error('Dashboard live refresh failed:', error);
+    }
+  }
+
+  // 1. Chart.js Risk Trend
   const ctx = document.getElementById('riskChart');
   if (ctx) {
-    // Fake trend data for demonstration
-    const labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-    const dataPoints = [42, 58, 48, 70, 65, 82, 60];
-
-    // Create a beautiful gradient fill
-    const gradient = ctx.getContext('2d').createLinearGradient(0, 0, 0, 400);
-    gradient.addColorStop(0, 'rgba(74, 107, 130, 0.4)'); // Slate blue semi-transparent
-    gradient.addColorStop(1, 'rgba(74, 107, 130, 0.0)'); // Transparent
-
-    new Chart(ctx, {
+    riskChart = new Chart(ctx, {
       type: 'line',
       data: {
-        labels: labels,
+        labels: [],
         datasets: [{
           label: 'Risk Exposure Score',
-          data: dataPoints,
+          data: [],
           borderColor: '#4A6B82', // Slate blue
-          backgroundColor: gradient,
+          backgroundColor: 'rgba(74, 107, 130, 0.2)',
           borderWidth: 2,
           pointBackgroundColor: '#fff',
           pointBorderColor: '#4A6B82',
@@ -294,7 +450,7 @@ document.addEventListener('DOMContentLoaded', () => {
             bodyFont: { family: 'Inter', size: 14, weight: 'bold' },
             displayColors: false,
             callbacks: {
-              label: function(context) { return 'Score: ' + context.parsed.y; }
+              label: function(context) { return 'Risk Score: ' + context.parsed.y + '/100'; }
             }
           }
         },
@@ -312,9 +468,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
     });
+
+    setTimeout(() => updateRiskChart('daily'), 0);
   }
 
-  // 3. Export to CSV Feature
+  if (chartRangeSelect) {
+    chartRangeSelect.addEventListener('change', (event) => {
+      updateRiskChart(String(event.target.value || 'Daily').toLowerCase());
+    });
+  }
+
+  // 2. Export to CSV Feature
   const btnExport = document.getElementById('btn-export');
   if (btnExport) {
     btnExport.addEventListener('click', () => {
@@ -349,6 +513,9 @@ document.addEventListener('DOMContentLoaded', () => {
       document.body.removeChild(a);
     });
   }
+
+  refreshDashboardLiveData();
+  window.setInterval(refreshDashboardLiveData, 2000);
 
 });
 </script>

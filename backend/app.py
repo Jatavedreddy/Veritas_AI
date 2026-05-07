@@ -14,7 +14,7 @@ import json
 import logging
 import os
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -79,6 +79,52 @@ def _request_json():
     if payload is None:
         return None, (jsonify({"error": "Request body must be valid JSON."}), 400)
     return payload, None
+
+
+DEFAULT_SETTINGS = {
+    "general": {
+        "platform_name": "Veritas Financial Advisory",
+        "timezone": "UTC (Coordinated Universal Time)",
+        "default_currency": "USD — US Dollar",
+        "alert_threshold_usd": 10000,
+    },
+    "ml_engine": {
+        "contamination_rate": 0.05,
+        "retraining_frequency": "Every 7 days",
+        "feature_weights": {
+            "transaction_amount": 0.8,
+            "region_risk_score": 0.6,
+            "historical_deviation": 0.7,
+        },
+    },
+    "agents": {
+        "compliance": True,
+        "quant": True,
+        "cro": True,
+        "llm_provider": "Groq — Compound Model (Default)",
+    },
+    "api_keys": {
+        "groq_api_key": "gsk_xxxxxxxxxxxxxxxxxxxx",
+        "azure_ai_search_endpoint": "https://veritas-search-*.search.windows.net",
+        "mongodb_connection": "mongodb+srv://veritas:*****@cluster.mongodb.net",
+    },
+}
+
+
+def _merge_settings(overrides):
+    merged = json.loads(json.dumps(DEFAULT_SETTINGS))
+    if not isinstance(overrides, dict):
+        return merged
+
+    for section, values in overrides.items():
+        if section not in merged or not isinstance(values, dict):
+            continue
+        for key, value in values.items():
+            if isinstance(merged[section].get(key), dict) and isinstance(value, dict):
+                merged[section][key].update(value)
+            else:
+                merged[section][key] = value
+    return merged
 
 
 def _normalize_records(payload):
@@ -183,6 +229,167 @@ def _build_alert(record, prediction, anomaly_score):
         "created_at": _utc_now(),
         "source": "ml_isolation_forest",
     }
+
+
+def _get_dashboard_snapshot():
+    collections = get_collections()
+
+    total_transactions = collections["transactions"].count_documents({})
+    total_alerts = collections["alerts"].count_documents({})
+    open_alerts = collections["alerts"].count_documents({"status": "open"})
+
+    if total_alerts > 0:
+        risk_score = min(int((open_alerts / max(total_alerts, 1)) * 100), 100)
+    else:
+        risk_score = 0
+
+    risk_level = (
+        "High" if risk_score >= 65
+        else "Medium" if risk_score >= 35
+        else "Low"
+    )
+
+    recent_cursor = (
+        collections["transactions"]
+        .find()
+        .sort("_id", -1)
+        .limit(5)
+    )
+    recent_transactions = [_jsonify_value(doc) for doc in recent_cursor]
+
+    return {
+        "metrics": {
+            "total_transactions": total_transactions,
+            "total_alerts": total_alerts,
+            "open_alerts": open_alerts,
+            "risk_score": risk_score,
+            "risk_level": risk_level,
+        },
+        "recent_transactions": recent_transactions,
+        "chart_data": _build_risk_trend_data(collections),
+    }
+
+
+def _coerce_datetime(value):
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
+
+    if isinstance(value, str):
+        normalized = value.replace("Z", "+00:00")
+        try:
+            parsed = datetime.fromisoformat(normalized)
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+
+    return None
+
+
+def _bucket_start(dt: datetime, range_key: str) -> datetime:
+    if range_key == "daily":
+        return dt.replace(hour=0, minute=0, second=0, microsecond=0)
+    if range_key == "weekly":
+        start_of_day = dt.replace(hour=0, minute=0, second=0, microsecond=0)
+        return start_of_day - timedelta(days=start_of_day.weekday())
+    if range_key == "monthly":
+        return dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    raise ValueError(f"Unsupported range key: {range_key}")
+
+
+def _next_bucket_start(dt: datetime, range_key: str) -> datetime:
+    if range_key == "daily":
+        return dt + timedelta(days=1)
+    if range_key == "weekly":
+        return dt + timedelta(weeks=1)
+    if range_key == "monthly":
+        if dt.month == 12:
+            return dt.replace(year=dt.year + 1, month=1)
+        return dt.replace(month=dt.month + 1)
+    raise ValueError(f"Unsupported range key: {range_key}")
+
+
+def _format_bucket_label(dt: datetime, range_key: str) -> str:
+    if range_key == "daily":
+        return dt.strftime("%b %d")
+    if range_key == "weekly":
+        return dt.strftime("Week of %b %d")
+    if range_key == "monthly":
+        return dt.strftime("%b %Y")
+    raise ValueError(f"Unsupported range key: {range_key}")
+
+
+def _build_risk_trend_data(collections):
+    now = _utc_now()
+    configs = {
+        "daily": 7,
+        "weekly": 8,
+        "monthly": 6,
+    }
+
+    oldest_needed = _bucket_start(now, "monthly")
+    for _ in range(configs["monthly"] - 1):
+        oldest_needed = _bucket_start(oldest_needed - timedelta(days=1), "monthly")
+
+    transactions_cursor = (
+        collections["transactions"]
+        .find()
+        .sort("ingested_at", 1)
+        .limit(5000)
+    )
+    alerts_cursor = (
+        collections["alerts"]
+        .find()
+        .sort("created_at", 1)
+        .limit(5000)
+    )
+
+    transaction_times = []
+    for transaction in transactions_cursor:
+        dt = _coerce_datetime(transaction.get("ingested_at") or transaction.get("timestamp"))
+        if dt and dt >= oldest_needed:
+            transaction_times.append(dt)
+
+    alert_times = []
+    for alert in alerts_cursor:
+        dt = _coerce_datetime(alert.get("created_at"))
+        if dt and dt >= oldest_needed:
+            alert_times.append(dt)
+
+    output = {}
+    for range_key, bucket_count in configs.items():
+        current_start = _bucket_start(now, range_key)
+        starts = [current_start]
+        while len(starts) < bucket_count:
+            previous_anchor = starts[0] - timedelta(days=1)
+            starts.insert(0, _bucket_start(previous_anchor, range_key))
+
+        labels = [_format_bucket_label(start, range_key) for start in starts]
+        tx_counts = []
+        alert_counts = []
+        risk_scores = []
+
+        for start in starts:
+            end = _next_bucket_start(start, range_key)
+            tx_count = sum(1 for dt in transaction_times if start <= dt < end)
+            alert_count = sum(1 for dt in alert_times if start <= dt < end)
+            score = min(int((alert_count / tx_count) * 100), 100) if tx_count else 0
+
+            tx_counts.append(tx_count)
+            alert_counts.append(alert_count)
+            risk_scores.append(score)
+
+        output[range_key] = {
+            "labels": labels,
+            "risk_scores": risk_scores,
+            "transaction_counts": tx_counts,
+            "alert_counts": alert_counts,
+        }
+
+    return output
 
 
 def _get_embedding_model():
@@ -351,6 +558,53 @@ def predict_transactions():
     except Exception as exc:
         logging.exception("Failed to score transaction payload")
         return jsonify({"error": "Failed to score transactions", "details": str(exc)}), 500
+
+
+@api_v1.route("/dashboard_live_data", methods=["GET"])
+def dashboard_live_data():
+    try:
+        return jsonify(_get_dashboard_snapshot()), 200
+    except Exception as exc:
+        logging.exception("Failed to fetch dashboard live data")
+        return jsonify({"error": "Failed to fetch dashboard live data", "details": str(exc)}), 500
+
+
+@api_v1.route("/settings", methods=["GET", "POST"])
+def user_settings():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Authentication required."}), 401
+
+    try:
+        collections = get_collections()
+        users = collections["users"]
+
+        if request.method == "GET":
+            user = users.find_one({"_id": ObjectId(user_id)}, {"settings": 1})
+            settings = _merge_settings((user or {}).get("settings"))
+            return jsonify({"status": "success", "settings": settings}), 200
+
+        payload, error = _request_json()
+        if error:
+            return error
+
+        settings_payload = payload.get("settings") if isinstance(payload, dict) else None
+        if not isinstance(settings_payload, dict):
+            return jsonify({"error": "Payload must include a 'settings' object."}), 400
+
+        settings = _merge_settings(settings_payload)
+        users.update_one(
+            {"_id": ObjectId(user_id)},
+            {"$set": {"settings": settings, "updated_at": _utc_now()}},
+            upsert=False,
+        )
+        return jsonify({"status": "success", "settings": settings}), 200
+
+    except InvalidId:
+        return jsonify({"error": "Invalid session user."}), 400
+    except Exception as exc:
+        logging.exception("Failed to load or save settings")
+        return jsonify({"error": "Failed to load or save settings", "details": str(exc)}), 500
 
 
 @api_v1.route("/search", methods=["POST"])
@@ -665,50 +919,13 @@ def create_app():
     @app.route("/dashboard")
     @login_required
     def dashboard_page():
-        collections = get_collections()
-
-        # ── Aggregate metrics from MongoDB ──────────────────
-        total_transactions = collections["transactions"].count_documents({})
-        total_alerts = collections["alerts"].count_documents({})
-        open_alerts = collections["alerts"].count_documents({"status": "open"})
-
-        # Derive a simple risk score: higher open-alert ratio → higher risk
-        if total_alerts > 0:
-            risk_score = min(int((open_alerts / max(total_alerts, 1)) * 100), 100)
-        else:
-            risk_score = 0
-
-        risk_level = (
-            "High" if risk_score >= 65
-            else "Medium" if risk_score >= 35
-            else "Low"
-        )
-
-        metrics = {
-            "total_transactions": total_transactions,
-            "total_alerts": total_alerts,
-            "open_alerts": open_alerts,
-            "risk_score": risk_score,
-            "risk_level": risk_level,
-        }
-
-        # ── Recent transactions (5 most recent) ────────────
-        # Sort by _id descending — always indexed, encodes insertion order.
-        recent_cursor = (
-            collections["transactions"]
-            .find()
-            .sort("_id", -1)
-            .limit(5)
-        )
-        recent_transactions = [
-            _jsonify_value(doc) for doc in recent_cursor
-        ]
+        snapshot = _get_dashboard_snapshot()
 
         return render_template(
             "dashboard.html",
             active_page="dashboard",
-            metrics=metrics,
-            recent_transactions=recent_transactions,
+            metrics=snapshot["metrics"],
+            recent_transactions=snapshot["recent_transactions"],
         )
 
     @app.route("/alerts")

@@ -10,7 +10,7 @@
   <span class="font-semibold">{{ alerts_data | length }}</span>
   <span class="text-gray-400">total alerts</span>
 </div>
-<button class="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-4 py-2 text-sm font-medium text-obsidian shadow-card hover:shadow-card-hover transition-all duration-200">
+<button id="btn-export-alerts" class="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-4 py-2 text-sm font-medium text-obsidian shadow-card hover:shadow-card-hover transition-all duration-200">
   <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
   Export CSV
 </button>
@@ -95,7 +95,7 @@
                 <span class="whitespace-nowrap text-[10px] px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold">{{ alert.get('source','unknown') | replace('_',' ') | title }}</span>
                 {% if txn.get('amount', 0) >= 100000 %}<span class="whitespace-nowrap text-[10px] px-2.5 py-1 rounded-full bg-red-50 text-red-700 font-semibold">Large Value</span>{% endif %}
                 {% if txn.get('region','') == 'High-Risk Jurisdiction' %}<span class="whitespace-nowrap text-[10px] px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 font-semibold">High-Risk Geo</span>{% endif %}
-                {% if meta.get('historical_avg_transaction',0) > 0 and txn.get('amount',0) > meta.get('historical_avg_transaction',0) * 10 %}<span class="whitespace-nowrap text-[10px] px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 font-semibold">Velocity Spike</span>{% endif %}
+                {% if meta.get('historical_avg_transaction',0) > 0 and txn.get('amount',0) > meta.get('historical_avg_transaction',0) * 10 %}<span class="whitespace-nowrap text-[10px] px-2.5 py-1 rounded-full bg-amethyst/10 text-amethyst-dark font-semibold">Velocity Spike</span>{% endif %}
               </div>
             </td>
             <td class="px-6 py-4 text-center">
@@ -147,6 +147,35 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('select').forEach(s => s.value = 'all');
     rows.forEach(r => r.style.display = '');
   });
+
+  // Export CSV
+  const btnExport = document.getElementById('btn-export-alerts');
+  if (btnExport) {
+    btnExport.addEventListener('click', () => {
+      const table = document.querySelector('table');
+      if (!table) return;
+      let csv = [];
+      const trs = table.querySelectorAll('tr');
+      for (let i = 0; i < trs.length; i++) {
+        if (trs[i].style.display === 'none') continue;
+        let row = [], cols = trs[i].querySelectorAll('td, th');
+        for (let j = 0; j < cols.length; j++) {
+          let data = cols[j].innerText.replace(/(\r\n|\n|\r)/gm, ' ').replace(/,/g, '').trim();
+          row.push('"' + data + '"');
+        }
+        csv.push(row.join(','));
+      }
+      const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.setAttribute('hidden', '');
+      a.setAttribute('href', url);
+      a.setAttribute('download', 'veritas-alerts-export.csv');
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    });
+  }
 });
 </script>
 {% endblock %}

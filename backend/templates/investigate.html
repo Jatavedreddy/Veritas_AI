@@ -171,7 +171,7 @@
         <div class="flex items-center gap-2">
           <h2 class="text-headline text-obsidian">AI Advisory Output</h2>
           <span id="agent-status-badge"
-                class="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-400">
+                class="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amethyst/10 text-amethyst">
             Awaiting
           </span>
         </div>
@@ -183,18 +183,39 @@
         </div>
       </div>
 
+      <div class="px-6 py-4 border-b border-gray-100 bg-gray-50/70 flex items-center justify-between gap-4">
+        <div>
+          <p class="text-sm font-semibold text-obsidian">Executive Brief & SAR Draft</p>
+          <p class="text-xs text-gray-400">Scrollable markdown output with export-ready formatting.</p>
+        </div>
+        <button id="download-pdf-btn"
+                class="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-obsidian shadow-sm transition hover:border-gray-300 hover:shadow-card disabled:cursor-not-allowed disabled:opacity-50"
+                disabled>
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v2.25A2.25 2.25 0 0 1 17.25 18.75H6.75A2.25 2.25 0 0 1 4.5 16.5v-2.25m3.75-3 3.75 3.75m0 0 3.75-3.75M12 15V3" />
+          </svg>
+          Download PDF
+        </button>
+      </div>
+
       <!-- Loading Spinner (hidden by default) -->
       <div id="agent-loader" class="hidden px-6 py-10">
         <div class="flex flex-col items-center justify-center">
           <!-- Animated spinner -->
           <div class="relative w-12 h-12 mb-5">
             <div class="absolute inset-0 rounded-full border-2 border-gray-200"></div>
-            <div class="absolute inset-0 rounded-full border-2 border-transparent border-t-terracotta animate-spin"></div>
+            <div class="absolute inset-0 rounded-full border-2 border-transparent border-t-amethyst animate-spin"></div>
           </div>
           <p class="text-sm font-medium text-obsidian mb-1">Agents are analyzing...</p>
           <p class="text-xs text-gray-400 text-center max-w-xs">
             The Virtual Risk Committee is reviewing regulatory context, portfolio exposure, and transaction anomalies. This may take 30–90 seconds.
           </p>
+
+          <div class="mt-5 flex items-center gap-2">
+            <span class="h-2.5 w-2.5 animate-pulse rounded-full bg-amethyst"></span>
+            <span class="h-2.5 w-2.5 animate-pulse rounded-full bg-terracotta [animation-delay:180ms]"></span>
+            <span class="h-2.5 w-2.5 animate-pulse rounded-full bg-slateblue [animation-delay:360ms]"></span>
+          </div>
 
           <!-- Animated progress steps -->
           <div class="mt-6 space-y-2 w-full max-w-xs">
@@ -211,14 +232,26 @@
               Chief Risk Officer drafting executive brief...
             </div>
           </div>
+
+          <div class="mt-6 w-full max-w-xs space-y-2">
+            <div class="h-2 overflow-hidden rounded-full bg-gray-100">
+              <div class="agent-progress-bar h-full w-1/2 rounded-full bg-gradient-to-r from-amethyst via-terracotta to-slateblue"></div>
+            </div>
+            <div class="grid grid-cols-3 gap-2">
+              <div class="h-10 rounded-xl bg-gray-100/80 animate-pulse"></div>
+              <div class="h-10 rounded-xl bg-gray-100/80 animate-pulse [animation-delay:120ms]"></div>
+              <div class="h-10 rounded-xl bg-gray-100/80 animate-pulse [animation-delay:240ms]"></div>
+            </div>
+          </div>
         </div>
       </div>
 
       <!-- Agent Output (initially empty) -->
-      <div id="agent-output" class="px-6 py-6">
+      <div id="agent-output" class="max-h-[760px] overflow-y-auto px-6 py-6">
         {% if alert and alert.get('executive_brief') %}
           <!-- Pre-existing report from a previous run -->
-          <div class="prose prose-sm max-w-none text-gray-700 leading-relaxed whitespace-pre-wrap font-sans text-sm">{{ alert.get('executive_brief', '') }}</div>
+          <script type="text/plain" id="existing-agent-report">{{ alert.get('executive_brief', '') }}</script>
+          <div id="agent-report-content" class="prose prose-sm max-w-none text-gray-700 leading-relaxed font-sans text-sm prose-headings:font-serif prose-headings:text-obsidian prose-strong:text-obsidian prose-li:marker:text-terracotta"></div>
           <div class="mt-4 pt-4 border-t border-gray-100 flex items-center gap-2">
             <span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-700">Previously Generated</span>
             <span class="text-[10px] text-gray-400">You can re-run the analysis to get a fresh assessment.</span>
@@ -256,24 +289,130 @@
 
 
 {% block scripts_extra %}
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
   const btn = document.getElementById('run-agents-btn');
-  if (!btn) return;
-
   const loader      = document.getElementById('agent-loader');
   const output      = document.getElementById('agent-output');
   const errorBox    = document.getElementById('agent-error');
   const errorMsg    = document.getElementById('agent-error-message');
   const statusBadge = document.getElementById('agent-status-badge');
-  const alertId     = btn.dataset.alertId;
+  const downloadBtn = document.getElementById('download-pdf-btn');
+  const existingReport = document.getElementById('existing-agent-report');
+  const alertId     = btn ? btn.dataset.alertId : null;
+  const transactionId = {{ transaction.get('transaction_id', '') | tojson }};
+  let latestReportMarkdown = existingReport ? existingReport.textContent.trim() : '';
 
   // Animated step highlights
   const steps = ['step-compliance', 'step-analyst', 'step-cro'];
   let stepIndex = 0;
   let stepTimer = null;
 
+  marked.setOptions({
+    breaks: true,
+    gfm: true
+  });
+
+  const reportShell = `
+    <style>
+      @keyframes agentProgressFlow {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(220%); }
+      }
+
+      .agent-progress-bar {
+        animation: agentProgressFlow 2.2s ease-in-out infinite;
+      }
+    </style>
+  `;
+  document.body.insertAdjacentHTML('beforeend', reportShell);
+
+  function setDownloadEnabled(enabled) {
+    if (!downloadBtn) return;
+    downloadBtn.disabled = !enabled;
+  }
+
+  function renderReport(markdown, isFresh) {
+    latestReportMarkdown = markdown || '';
+    output.innerHTML = `
+      <div id="agent-report-content" class="prose prose-sm max-w-none text-gray-700 leading-relaxed font-sans text-sm prose-headings:font-serif prose-headings:text-obsidian prose-strong:text-obsidian prose-li:marker:text-terracotta">${marked.parse(latestReportMarkdown)}</div>
+      <div class="mt-4 pt-4 border-t border-gray-100 flex items-center gap-2">
+        <span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${isFresh ? 'bg-emerald-100 text-emerald-700' : 'bg-emerald-100 text-emerald-700'}">${isFresh ? 'Complete' : 'Previously Generated'}</span>
+        <span class="text-[10px] text-gray-400">${isFresh ? 'Generated just now by the Virtual Risk Committee.' : 'You can re-run the analysis to get a fresh assessment.'}</span>
+      </div>
+    `;
+    setDownloadEnabled(Boolean(latestReportMarkdown.trim()));
+  }
+
+  function pdfTextFromMarkdown(markdown) {
+    return markdown
+      .replace(/^#{1,6}\s*/gm, '')
+      .replace(/\*\*(.*?)\*\*/g, '$1')
+      .replace(/\*(.*?)\*/g, '$1')
+      .replace(/`([^`]+)`/g, '$1')
+      .replace(/^\s*[-*]\s+/gm, '• ')
+      .replace(/^\s*\d+\.\s+/gm, '• ')
+      .trim();
+  }
+
+  async function downloadPdf() {
+    if (!latestReportMarkdown.trim() || !window.jspdf) return;
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 48;
+    let y = margin;
+
+    function writeWrapped(text, opts = {}) {
+      const fontSize = opts.fontSize || 11;
+      const lineHeight = opts.lineHeight || 16;
+      doc.setFont('helvetica', opts.style || 'normal');
+      doc.setFontSize(fontSize);
+      const lines = doc.splitTextToSize(text, pageWidth - margin * 2);
+      lines.forEach((line) => {
+        if (y > pageHeight - margin) {
+          doc.addPage();
+          y = margin;
+        }
+        doc.text(line, margin, y);
+        y += lineHeight;
+      });
+    }
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(18);
+    doc.text('Veritas AI Risk Committee Report', margin, y);
+    y += 24;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(110, 118, 131);
+    doc.text(`Transaction ID: ${transactionId}`, margin, y);
+    y += 14;
+    doc.text(`Generated: ${new Date().toLocaleString()}`, margin, y);
+    y += 24;
+    doc.setTextColor(33, 37, 41);
+
+    writeWrapped(pdfTextFromMarkdown(latestReportMarkdown), { fontSize: 11, lineHeight: 17 });
+    doc.save(`veritas-risk-report-${transactionId || 'report'}.pdf`);
+  }
+
   function animateSteps() {
+    stepIndex = 0;
+    steps.forEach((stepId) => {
+      const stepEl = document.getElementById(stepId);
+      if (!stepEl) return;
+      stepEl.classList.remove('text-terracotta', 'font-medium');
+      stepEl.classList.add('text-gray-400');
+      const dot = stepEl.querySelector('.step-dot');
+      dot.classList.remove('bg-terracotta');
+      dot.classList.add('bg-gray-300');
+    });
+
     stepTimer = setInterval(() => {
       if (stepIndex < steps.length) {
         const el = document.getElementById(steps[stepIndex]);
@@ -285,6 +424,17 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }, 8000);
   }
+
+  if (latestReportMarkdown) {
+    renderReport(latestReportMarkdown, false);
+    setDownloadEnabled(true);
+  }
+
+  if (downloadBtn) {
+    downloadBtn.addEventListener('click', downloadPdf);
+  }
+
+  if (!btn) return;
 
   btn.addEventListener('click', async () => {
     // UI → loading state
@@ -319,13 +469,7 @@ document.addEventListener('DOMContentLoaded', () => {
       clearInterval(stepTimer);
       loader.classList.add('hidden');
       output.classList.remove('hidden');
-      output.innerHTML = `
-        <div class="prose prose-sm max-w-none text-gray-700 leading-relaxed whitespace-pre-wrap font-sans text-sm">${data.report}</div>
-        <div class="mt-4 pt-4 border-t border-gray-100 flex items-center gap-2">
-          <span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-700">Complete</span>
-          <span class="text-[10px] text-gray-400">Generated just now by the Virtual Risk Committee.</span>
-        </div>
-      `;
+      renderReport(data.report || '', true);
       statusBadge.textContent = 'Complete';
       statusBadge.className = 'inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-700';
 
@@ -340,6 +484,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (err) {
       clearInterval(stepTimer);
       loader.classList.add('hidden');
+      output.classList.remove('hidden');
       errorBox.classList.remove('hidden');
       errorMsg.textContent = err.message;
       statusBadge.textContent = 'Failed';

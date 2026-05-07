@@ -14,6 +14,8 @@
           colors: {
             offwhite: '#FDFAFA', obsidian: '#1E1E1E', terracotta: '#D96B52',
             slateblue: '#4A6B82', mutedsage: '#6B7A6A',
+            amethyst: '#7B68AE', deepnavy: '#2A3F5F',
+            'amethyst-light': '#9B8EC4', 'deepnavy-light': '#3D5A80',
           },
           fontFamily: { serif: ['Playfair Display','serif'], sans: ['Inter','sans-serif'] }
         }
@@ -25,11 +27,27 @@
     .glow { box-shadow: 0 0 80px rgba(217,107,82,0.08), 0 25px 60px rgba(0,0,0,0.25); }
     .field:focus-within label { color: #D96B52; }
     @keyframes fadeUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes ambientPulse {
+      0%, 100% { transform: scale(1) translate3d(0, 0, 0); opacity: 0.45; }
+      50% { transform: scale(1.08) translate3d(8px, -10px, 0); opacity: 0.72; }
+    }
+    @keyframes driftSlow {
+      0%, 100% { transform: translate3d(0, 0, 0); }
+      50% { transform: translate3d(-16px, 14px, 0); }
+    }
     .animate-up { animation: fadeUp 0.5s ease-out both; }
     .animate-up-delay { animation: fadeUp 0.5s ease-out 0.15s both; }
+    .ambient-blob { animation: ambientPulse 8s ease-in-out infinite; }
+    .ambient-grid { animation: driftSlow 14s ease-in-out infinite; }
   </style>
 </head>
-<body class="min-h-screen bg-obsidian flex">
+<body class="min-h-screen bg-obsidian flex relative overflow-hidden">
+
+  <div class="absolute inset-0" style="background: radial-gradient(circle at 18% 16%, rgba(74,107,130,0.42) 0%, rgba(74,107,130,0.12) 28%, transparent 52%), linear-gradient(160deg, #111214 0%, #213149 48%, #4f4a86 100%);"></div>
+  <div class="ambient-grid absolute inset-0 opacity-[0.08]" style="background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.55) 1px, transparent 0); background-size: 30px 30px;"></div>
+  <div class="ambient-blob absolute -left-20 top-20 h-72 w-72 rounded-full bg-slateblue/20 blur-3xl"></div>
+  <div class="ambient-blob absolute right-20 bottom-10 h-80 w-80 rounded-full bg-amethyst/20 blur-3xl" style="animation-delay:1.6s"></div>
+  <div class="ambient-blob absolute left-[45%] top-[38%] h-56 w-56 rounded-full bg-terracotta/10 blur-3xl" style="animation-delay:3.2s"></div>
 
   <!-- LEFT: Branding Panel -->
   <div class="hidden lg:flex w-[45%] flex-col justify-between p-12 relative overflow-hidden">
@@ -38,8 +56,11 @@
 
     <div class="relative z-10">
       <div class="flex items-center gap-3 mb-16">
-        <div class="w-10 h-10 rounded-lg bg-terracotta flex items-center justify-center">
-          <span class="text-white font-serif font-bold text-lg">V</span>
+        <div class="w-10 h-10 rounded-lg bg-terracotta/10 border border-terracotta/30 flex items-center justify-center">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" class="w-6 h-6">
+            <path d="M24 4.5L8 11.5v12c0 9.8 6.8 18.95 16 21.2 9.2-2.25 16-11.4 16-21.2v-12L24 4.5z" fill="none" stroke="#D96B52" stroke-width="2"/>
+            <path d="M16 20l6 10 10-16" stroke="#D96B52" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          </svg>
         </div>
         <div>
           <span class="text-white font-serif font-semibold text-lg tracking-wide">VERITAS</span>
@@ -63,15 +84,18 @@
   </div>
 
   <!-- RIGHT: Login Form -->
-  <div class="flex-1 flex items-center justify-center p-8">
+  <div class="relative z-10 flex-1 flex items-center justify-center p-8">
     <div class="w-full max-w-md animate-up">
 
       <div class="bg-white/[0.03] backdrop-blur-sm border border-white/[0.06] rounded-3xl p-10 glow">
 
         <!-- Logo (mobile) -->
         <div class="lg:hidden flex items-center gap-3 mb-8">
-          <div class="w-9 h-9 rounded-lg bg-terracotta flex items-center justify-center">
-            <span class="text-white font-serif font-bold">V</span>
+          <div class="w-9 h-9 rounded-lg bg-terracotta/10 border border-terracotta/30 flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" class="w-5 h-5">
+              <path d="M24 4.5L8 11.5v12c0 9.8 6.8 18.95 16 21.2 9.2-2.25 16-11.4 16-21.2v-12L24 4.5z" fill="none" stroke="#D96B52" stroke-width="2"/>
+              <path d="M16 20l6 10 10-16" stroke="#D96B52" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            </svg>
           </div>
           <span class="text-white font-serif font-semibold tracking-wide">VERITAS</span>
         </div>
