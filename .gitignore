@@ -22,12 +22,12 @@ Thumbs.db
 # Data artifacts (large files)
 data/raw/*.csv
 data/raw/*.json
-data/processed/
-*.parquet
+# data/processed/ — KEEP: Azure needs regulatory_embeddings.json & portfolio_holdings.csv
+# *.parquet — KEEP: Azure needs ml_feature_matrix.parquet for reference
 
 # ML artifacts
 ml/models/*.pkl
-ml/models/*.joblib
+# ml/models/*.joblib — KEEP: Azure needs trained models for inference
 ml/models/*.onnx
 
 # Logs
