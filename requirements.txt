@@ -21,3 +21,4 @@ openai
 
 # ─── Production Server ─────────────────────────────────
 gunicorn>=22.0.0
+pysqlite3-binary>=0.5.0     # Fixes SQLite < 3.35 on Azure (required by ChromaDB/CrewAI)

@@ -10,6 +10,16 @@ Endpoints:
   POST /api/v1/advise            Run the Virtual Risk Committee
 """
 
+# ── SQLite fix for Azure App Service ───────────────────────────────────────────
+# ChromaDB (pulled by CrewAI) requires SQLite >= 3.35.0 but Azure's Python image
+# ships with an older version. pysqlite3-binary is a drop-in replacement.
+try:
+    __import__('pysqlite3')
+    import sys
+    sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+except ImportError:
+    pass  # Not on Azure — system sqlite3 is fine
+
 import json
 import logging
 import os

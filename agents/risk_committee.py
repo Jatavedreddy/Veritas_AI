@@ -17,6 +17,15 @@ Usage:
     python -m agents.risk_committee --transaction '{}'    # custom JSON input
 """
 
+# ── SQLite fix for Azure App Service ──────────────────────────────────────────
+# ChromaDB (pulled by CrewAI) requires SQLite >= 3.35.0
+try:
+    __import__('pysqlite3')
+    import sys
+    sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+except ImportError:
+    pass
+
 import os
 import sys
 import json
