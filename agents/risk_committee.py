@@ -37,10 +37,11 @@ AZURE_OPENAI_EMBEDDING_DEPLOYMENT = os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT
 INDEX_NAME = "veritas-regulations"
 
 # Local fallback path for regulatory embeddings (when Azure is unavailable)
-LOCAL_EMBEDDINGS_PATH = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)),
-    "..", "data", "processed", "regulatory_embeddings.json",
-)
+# Use Path for reliable resolution across Oryx/Azure extracted directories
+from pathlib import Path as _Path
+_AGENTS_DIR = _Path(__file__).resolve().parent
+_PROJECT_ROOT = _AGENTS_DIR.parent
+LOCAL_EMBEDDINGS_PATH = str(_PROJECT_ROOT / "data" / "processed" / "regulatory_embeddings.json")
 
 
 # ─── Utilities ─────────────────────────────────────────────────────────────────
@@ -488,9 +489,9 @@ def run_risk_committee(transaction_data: Optional[dict] = None) -> str:
     _header("Initialization")
 
     if not GROQ_API_KEY or GROQ_API_KEY == "your-groq-api-key-here":
-        print("  ✘ GROQ_API_KEY not configured in .env")
-        print("    Get a free API key at: https://console.groq.com")
-        sys.exit(1)
+        raise RuntimeError(
+            "GROQ_API_KEY not configured. Set it in Azure App Settings or .env"
+        )
 
     _step(f"Groq model: {GROQ_MODEL}")
     _step(f"Embedding deployment: {AZURE_OPENAI_EMBEDDING_DEPLOYMENT}")

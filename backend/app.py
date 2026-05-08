@@ -924,13 +924,37 @@ def advise_on_alert():
         }
 
         from agents.risk_committee import run_risk_committee
-        import concurrent.futures
+        import threading
 
-        # Run CrewAI in a thread to avoid Flask asyncio conflicts
-        # Note: ThreadPoolExecutor used instead of ProcessPoolExecutor for Azure App Service compatibility
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(run_risk_committee, transaction_data)
-            report = future.result(timeout=120)
+        # CrewAI uses asyncio internally. Flask's sync gunicorn worker may have
+        # a stale event loop. We run the agent in a fresh thread with its own
+        # event loop to avoid conflicts.
+        result_holder = {"report": None, "error": None}
+
+        def _run_agents():
+            import asyncio
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                result_holder["report"] = run_risk_committee(transaction_data)
+            except Exception as e:
+                result_holder["error"] = str(e)
+            finally:
+                try:
+                    loop.close()
+                except Exception:
+                    pass
+
+        worker = threading.Thread(target=_run_agents)
+        worker.start()
+        worker.join(timeout=180)  # 3-minute timeout
+
+        if result_holder["error"]:
+            raise RuntimeError(result_holder["error"])
+        if result_holder["report"] is None:
+            raise RuntimeError("Agent execution timed out after 180 seconds")
+
+        report = result_holder["report"]
         now = _utc_now()
 
         sar_doc = {
