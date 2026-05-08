@@ -1,13 +1,14 @@
 """
-Veritas Financial Risk & Advisory Platform
-Flask Backend API
+
+ Veritas Financial Risk & Advisory Platform
+ F lask Backend API
 
 Endpoints:
   GET  /                         Health check
-  POST /api/v1/ingest            Persist raw transactions
-  POST /api/v1/predict           Score transactions with IsolationForest
+  POST /api/v1/ingest            Per sist raw transactions
+  POST /api /v1 /predict           Score   with IsolationForest
   POST /api/v1/search            Retrieve regulatory context
-  POST /api/v1/advise            Run the Virtual Risk Committee
+  POST /api/v1/advise            Run  the Virtual Risk Committee
 """
 
 # ── SQLite fix for Azure App Service ───────────────────────────────────────────
