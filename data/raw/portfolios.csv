@@ -1,0 +1,24 @@
+Client_ID,Client_Name,Profile,Asset_Class,Ticker,Sector,Invested_Amount,Current_Value,Return_Pct,Risk_Beta,ESG_Score,PE_Ratio,Market_Cap,Dividend_Yield,Market_Sentiment
+C001,Sterling Venture Partners,Aggressive Growth,Equity,NVDA,Technology,1500000.0,1412899.83,-5.81,1.8,65,72.4,2.2T,0.02,Bullish
+C001,Sterling Venture Partners,Aggressive Growth,Equity,AAPL,Technology,1000000.0,1105297.28,10.53,1.2,72,28.5,2.6T,0.5,Neutral
+C001,Sterling Venture Partners,Aggressive Growth,Equity,MSFT,Technology,1500000.0,1484457.66,-1.04,1.1,85,34.1,3.1T,0.7,Bullish
+C001,Sterling Venture Partners,Aggressive Growth,Crypto,BTC,Digital Asset,500000.0,701600.15,40.32,3.0,20,0.0,1.3T,0.0,Volatile
+C001,Sterling Venture Partners,Aggressive Growth,Equity,ICLN,Clean Energy,500000.0,600238.68,20.05,1.4,95,24.5,15B,1.2,Bullish
+C002,Arthur J. Henderson (Private),Income Preservation,Fixed Income,US10Y,Government,800000.0,840000.0,5.0,0.0,50,0.0,N/A,4.2,Stable
+C002,Arthur J. Henderson (Private),Income Preservation,Fixed Income,LQD,Corporate Bonds,600000.0,650118.07,8.35,0.2,65,0.0,N/A,5.4,Stable
+C002,Arthur J. Henderson (Private),Income Preservation,Fixed Income,MUB,Municipal,200000.0,206711.36,3.36,0.1,80,0.0,N/A,3.8,Stable
+C002,Arthur J. Henderson (Private),Income Preservation,Equity,JNJ,Healthcare,300000.0,319004.49,6.33,0.6,75,15.4,380B,2.9,Stable
+C002,Arthur J. Henderson (Private),Income Preservation,Commodity,GLD,Precious Metals,100000.0,104011.88,4.01,-0.1,50,0.0,N/A,0.0,Bullish
+C003,Lumina Digital Assets,Extreme Risk,Crypto,BTC,Digital Asset,250000.0,274599.22,9.84,3.0,20,0.0,1.3T,0.0,Volatile
+C003,Lumina Digital Assets,Extreme Risk,Crypto,ETH,Digital Asset,150000.0,174366.13,16.24,3.5,40,0.0,420B,3.4,Bullish
+C003,Lumina Digital Assets,Extreme Risk,Equity,NVDA,Technology,100000.0,91589.8,-8.41,1.8,65,72.4,2.2T,0.02,Bullish
+C004,St. Jude Foundation Trust,Balanced,Equity,AAPL,Technology,1500000.0,1545989.03,3.07,1.2,72,28.5,2.6T,0.5,Neutral
+C004,St. Jude Foundation Trust,Balanced,Equity,MSFT,Technology,1500000.0,1530890.76,2.06,1.1,85,34.1,3.1T,0.7,Bullish
+C004,St. Jude Foundation Trust,Balanced,Equity,JPM,Financials,1000000.0,967415.75,-3.26,1.0,60,11.2,540B,2.4,Neutral
+C004,St. Jude Foundation Trust,Balanced,Fixed Income,US10Y,Government,3000000.0,3150000.0,5.0,0.0,50,0.0,N/A,4.2,Stable
+C004,St. Jude Foundation Trust,Balanced,Fixed Income,LQD,Corporate Bonds,2000000.0,2099224.24,4.96,0.2,65,0.0,N/A,5.4,Stable
+C004,St. Jude Foundation Trust,Balanced,Real Estate,VNQ,REIT,1000000.0,1185309.83,18.53,0.9,60,18.2,85B,4.1,Bearish
+C005,Green Future Endowment,Sustainable Growth,Equity,ICLN,Clean Energy,1200000.0,1388777.69,15.73,1.4,95,24.5,15B,1.2,Bullish
+C005,Green Future Endowment,Sustainable Growth,Equity,MSFT,Technology,600000.0,711163.65,18.53,1.1,85,34.1,3.1T,0.7,Bullish
+C005,Green Future Endowment,Sustainable Growth,Equity,JNJ,Healthcare,600000.0,655748.51,9.29,0.6,75,15.4,380B,2.9,Stable
+C005,Green Future Endowment,Sustainable Growth,Fixed Income,MUB,Municipal,600000.0,622425.98,3.74,0.1,80,0.0,N/A,3.8,Stable

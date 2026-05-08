@@ -926,10 +926,11 @@ def advise_on_alert():
         from agents.risk_committee import run_risk_committee
         import concurrent.futures
 
-        # Run CrewAI in a completely isolated process to avoid Flask threading/asyncio conflicts
-        with concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor:
+        # Run CrewAI in a thread to avoid Flask asyncio conflicts
+        # Note: ThreadPoolExecutor used instead of ProcessPoolExecutor for Azure App Service compatibility
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
             future = executor.submit(run_risk_committee, transaction_data)
-            report = future.result()
+            report = future.result(timeout=120)
         now = _utc_now()
 
         sar_doc = {
@@ -993,7 +994,7 @@ def analyze_portfolio():
             return jsonify({"error": "No client_id provided"}), 400
             
         # Load rich data from CSV
-        csv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "raw", "portfolios.csv")
+        csv_path = str(PROJECT_ROOT / "data" / "raw" / "portfolios.csv")
         try:
             df = pd.read_csv(csv_path)
             client_df = df[df["Client_ID"] == client_id]

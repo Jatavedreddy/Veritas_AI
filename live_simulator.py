@@ -7,7 +7,8 @@ from datetime import datetime, timezone
 import requests
 
 
-BASE_URL = "http://127.0.0.1:8080/api/v1"
+# BASE_URL = "http://127.0.0.1:8080/api/v1"
+BASE_URL = "https://veritas-platform-web-app-fhg4ekdkcgbdfpbc.koreacentral-01.azurewebsites.net/api/v1"
 INGEST_URL = f"{BASE_URL}/ingest"
 PREDICT_URL = f"{BASE_URL}/predict"
 SLEEP_SECONDS = 1.5
