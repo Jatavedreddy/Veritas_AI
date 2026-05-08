@@ -1092,6 +1092,37 @@ def create_app():
             }
         ), 200
 
+    @app.route("/api/debug/agents", methods=["GET"])
+    def debug_agents():
+        """Diagnostic endpoint: checks all agent dependencies."""
+        checks = {}
+        try:
+            import crewai
+            checks["crewai"] = f"OK (v{crewai.__version__})"
+        except Exception as e:
+            checks["crewai"] = f"FAIL: {e}"
+        try:
+            from crewai import LLM
+            checks["crewai_llm"] = "OK"
+        except Exception as e:
+            checks["crewai_llm"] = f"FAIL: {e}"
+        try:
+            from groq import Groq
+            checks["groq"] = "OK"
+        except Exception as e:
+            checks["groq"] = f"FAIL: {e}"
+        try:
+            from agents.risk_committee import run_risk_committee
+            checks["risk_committee_import"] = "OK"
+        except Exception as e:
+            checks["risk_committee_import"] = f"FAIL: {e}"
+
+        checks["GROQ_API_KEY"] = "SET" if os.getenv("GROQ_API_KEY") else "MISSING"
+        checks["GROQ_MODEL"] = os.getenv("GROQ_MODEL", "NOT SET")
+        checks["AZURE_SEARCH_ENDPOINT"] = "SET" if os.getenv("AZURE_SEARCH_ENDPOINT") else "MISSING"
+
+        return jsonify(checks), 200
+
     # ── Auth decorator ──────────────────────────────────────
     def login_required(f):
         @wraps(f)
