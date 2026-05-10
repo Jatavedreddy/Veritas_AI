@@ -27,21 +27,21 @@
 
 ## 📸 Screenshots
 
-| Dashboard | AI Wealth Advisor |
-|:---------:|:-----------------:|
-| ![Dashboard](readme_images/Dashboard.png) | ![AI Wealth Advisor](readme_images/AI_Wealth_Advisor.png) |
+|                Dashboard                |                    AI Wealth Advisor                    |
+| :-------------------------------------: | :-----------------------------------------------------: |
+| ![Dashboard](https://github.com/user-attachments/assets/b03f9a56-f920-4d3e-ad1d-5f3918ee9cc2) | ![AI Wealth Advisor](https://github.com/user-attachments/assets/e43e4d65-32b0-48e5-b07a-00797cb97adc) |
 
-| Transaction Investigation | Compliance Chatbot |
-|:-------------------------:|:------------------:|
-| ![Transaction Investigation](readme_images/Transaction_investigation.png) | ![Compliance Chatbot](readme_images/compliance_chatbot.png) |
+|                        Transaction Investigation                        |                    Compliance Chatbot                    |
+| :---------------------------------------------------------------------: | :-------------------------------------------------------: |
+| ![Transaction Investigation](https://github.com/user-attachments/assets/f08e4176-c211-4db8-9c76-cc24b9dae8d5) | ![Compliance Chatbot](https://github.com/user-attachments/assets/5fd9db55-f35e-401b-a107-0a2c5bad085d) |
 
-| Alerts Management | Platform Settings |
-|:-----------------:|:-----------------:|
-| ![Alerts Management](readme_images/Alerts_management.png) | ![Platform Settings](readme_images/Platform_settings.png) |
+|                    Alerts Management                    |                    Platform Settings                    |
+| :-----------------------------------------------------: | :-----------------------------------------------------: |
+| ![Alerts Management](https://github.com/user-attachments/assets/4c0cf0c0-6ac0-4ccc-a69b-29097b999859) | ![Platform Settings](https://github.com/user-attachments/assets/258720ad-cdd7-40af-ae4d-a744801ec501) |
 
-| Live Simulator (Terminal) | Landing Page |
-|:-------------------------:|:------------:|
-| ![Live Simulator](readme_images/live_simulator.png) | ![Landing Page](readme_images/landing_page.png) |
+|             Live Simulator (Terminal)             |                 Landing Page                 |
+| :-----------------------------------------------: | :-------------------------------------------: |
+| ![Live Simulator](https://github.com/user-attachments/assets/498af356-433b-4e25-803b-f504886b98b0) | ![Landing Page](https://github.com/user-attachments/assets/9e1f5225-4b11-4cc8-aaf3-4513332e0621) |
 
 ---
 
